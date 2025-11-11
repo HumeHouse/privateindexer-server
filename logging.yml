@@ -1,0 +1,42 @@
+version: 1
+disable_existing_loggers: False
+
+formatters:
+  simple:
+    format: "[%(asctime)s] %(levelname)s: %(message)s"
+    datefmt: "%Y-%m-%d %H:%M:%S"
+
+handlers:
+  console:
+    class: logging.StreamHandler
+    formatter: simple
+    stream: ext://sys.stdout
+  file:
+    class: logging.handlers.RotatingFileHandler
+    formatter: simple
+    filename: /app/logs/app.log
+    maxBytes: 10485760
+    backupCount: 5
+    encoding: utf8
+
+loggers:
+  privateindexer:
+    handlers: [ console, file ]
+    level: INFO
+    propagate: False
+  uvicorn:
+    handlers: [ console ]
+    level: WARNING
+    propagate: False
+  uvicorn.error:
+    handlers: [ console ]
+    level: WARNING
+    propagate: False
+  uvicorn.access:
+    handlers: [ console ]
+    level: WARNING
+    propagate: False
+
+root:
+  handlers: [ console ]
+  level: INFO

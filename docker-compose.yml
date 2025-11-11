@@ -1,0 +1,98 @@
+networks:
+  privateindexer-net:
+    name: privateindexer-net
+  mysql-net:
+    name: mysql-net
+    external: true
+  nginx-net:
+    name: nginx-net
+    external: true
+  nginx-public-net:
+    external: true
+    name: nginx-public-net
+services:
+  privateindexer-server:
+    image: privateindexer-server:latest
+    container_name: privateindexer-server
+    restart: always
+    environment:
+      REDIS_HOST: privateindexer-redis
+      MYSQL_HOST: mysql
+      MYSQL_USER: root
+      MYSQL_PASSWORD: password
+      ANNOUNCE_INTERVAL: 900
+      PEER_TIMEOUT: 1800
+      DATABASE_CHECK_INTERVAL: 120
+      STALE_CHECK_INTERVAL: 12
+      STALE_THRESHOLD: 30
+      LOG_LEVEL: INFO
+      HIGH_LATECY_THRESHOLD: 100
+    volumes:
+      - /humehouse/privateindexer/server/torrents:/app/torrents
+      - /humehouse/privateindexer/server/logs:/app/logs
+    networks:
+      privateindexer-net:
+      mysql-net:
+      nginx-net:
+        ipv4_address: 172.0.3.18
+      nginx-public-net:
+        ipv4_address: 172.0.4.4
+    depends_on:
+      - redis
+    logging:
+      options:
+        max-size: 50m
+        max-file: 5
+    labels:
+      autoheal: false
+    build:
+      context: .
+      network: host
+  privateindexer-tracker:
+    image: privateindexer-tracker:latest
+    container_name: privateindexer-tracker
+    restart: always
+    environment:
+      REDIS_HOST: privateindexer-redis
+      MYSQL_HOST: mysql
+      MYSQL_USER: root
+      MYSQL_PASSWORD: password
+      ANNOUNCE_INTERVAL: 900
+      PEER_TIMEOUT: 1800
+      LOG_LEVEL: INFO
+    volumes:
+      - /humehouse/privateindexer/tracker/logs:/app/logs
+    networks:
+      privateindexer-net:
+      mysql-net:
+      nginx-net:
+        ipv4_address: 172.0.3.21
+      nginx-public-net:
+        ipv4_address: 172.0.4.5
+    depends_on:
+      - redis
+      - privateindexer-server
+    logging:
+      options:
+        max-size: 50m
+        max-file: 5
+    labels:
+      autoheal: false
+    build:
+      context: .
+      network: host
+  redis:
+    image: redis:7-alpine
+    container_name: privateindexer-redis
+    restart: always
+    volumes:
+      - /humehouse/privateindexer/server/redis:/data
+    networks:
+      privateindexer-net:
+    healthcheck:
+      test: redis-cli ping
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    labels:
+      autoheal: true
