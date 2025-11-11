@@ -6,13 +6,13 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI, Request, Response
 
 from privateindexer_server.core import mysql, api, database_check, stale_check, redis, utils, peer_timeout
-from privateindexer_server.core.config import TORRENTS_DIR, HIGH_LATECY_THRESHOLD
+from privateindexer_server.core.config import TORRENTS_DIR, HIGH_LATECY_THRESHOLD, APP_VERSION
 from privateindexer_server.core.logger import log
 
 
 @asynccontextmanager
 async def lifespan(_: FastAPI):
-    log.info("[APP] Starting PrivateIndexer server")
+    log.info(f"[APP] Starting PrivateIndexer server v{APP_VERSION}")
 
     if not os.path.exists(TORRENTS_DIR):
         log.info(f"[APP] Creating torrents directory: {TORRENTS_DIR}")
@@ -50,7 +50,7 @@ async def lifespan(_: FastAPI):
 
 
 app = FastAPI(lifespan=lifespan, docs_url=None, redoc_url=None, openapi_url=None,
-              title=f"PrivateIndexer Server", version="1.0.0")
+              title=f"PrivateIndexer Server", version=APP_VERSION)
 
 app.include_router(api.router)
 

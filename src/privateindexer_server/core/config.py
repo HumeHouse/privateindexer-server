@@ -1,5 +1,7 @@
 import os
 
+APP_VERSION = "1.0.0"
+
 TORRENTS_DIR = "/app/torrents"
 
 CATEGORIES = {"movies": {"id": 1000, "name": "Movies"}, "tv": {"id": 5000, "name": "TV"}}
