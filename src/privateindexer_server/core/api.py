@@ -31,6 +31,14 @@ async def api_key_required(apikey_query: str | None = Query(None, alias="apikey"
     return user
 
 
+@router.get("/health")
+def get_health():
+    """
+    Endpoint to be used by Docker for checking the readiness of the API
+    """
+    return PlainTextResponse("OK")
+
+
 @router.get("/analytics")
 async def get_stats(user: User = Depends(api_key_required)):
     log.debug(f"[ANALYTICS] User '{user.user_label}' requested analytics")
