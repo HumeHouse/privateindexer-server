@@ -147,6 +147,7 @@ async def get_user_stats(user: User = Depends(api_key_required)):
     else:
         server_ratio = 0.0
 
+    # TODO: remove deprecated key `peers_on_user_torrents`
     user_stats = {"user": user.user_label, "torrents_added_total": torrents_added_total, "currently_seeding": currently_seeding, "currently_leeching": currently_leeching,
                   "peers_on_user_torrents": 0, "grabs_total": grabs_total, "total_download": total_downloaded, "total_upload": total_uploaded,
                   "server_ratio": server_ratio}
