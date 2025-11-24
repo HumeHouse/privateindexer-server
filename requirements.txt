@@ -3,5 +3,5 @@ fastapi~=0.121.1
 uvicorn[standard]~=0.38.0
 python-multipart~=0.0.20
 aiomysql~=0.3.2
-redis[hiredis]~=7.0.1
+redis[hiredis]~=7.1.0
 pydantic~=2.12.4
