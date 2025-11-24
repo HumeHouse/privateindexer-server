@@ -201,21 +201,13 @@ async def torznab_api(user: User = Depends(api_key_required), t: str = Query(...
 
         if cat:
             cats = [int(c) for c in cat.split(",")]
-            where_clauses.append(f"category IN ({",".join(["%s"] * len(cats))})")
+            where_clauses.append(f"t.category IN ({",".join(["%s"] * len(cats))})")
             params.extend(cats)
 
         where_sql = " AND ".join(where_clauses) if where_clauses else "1=1"
 
-        count_query = f"""
-            SELECT COUNT(*) AS total
-            FROM torrents t
-            WHERE {where_sql}
-        """
-        total_result = await mysql.fetch_one(count_query, tuple(params))
-        total_matches = total_result["total"] if total_result else 0
-
         query = f"""
-        SELECT *
+            SELECT *, COUNT(*) OVER() AS total_matches
             FROM (
                 SELECT t.*,
                        COALESCE(SUM(IF(p.left_bytes = 0, 1, 0)), 0) AS seeders,
@@ -233,6 +225,11 @@ async def torznab_api(user: User = Depends(api_key_required), t: str = Query(...
 
         query_params = (int(PEER_TIMEOUT),) + tuple(params) + (int(limit), int(offset))
         results = await mysql.fetch_all(query, query_params)
+
+        if results:
+            total_matches = results[0]["total_matches"]
+        else:
+            total_matches = 0
 
         filtered_results = []
         for t_entry in results:
