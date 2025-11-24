@@ -196,7 +196,7 @@ async def torznab_api(user: User = Depends(api_key_required), t: str = Query(...
 
         if q:
             normalized_q = f"%{utils.normalize_search_string(q).lower()}%"
-            where_clauses.append("LOWER(REGEXP_REPLACE(t.name, '[^a-z0-9]', '')) LIKE %s")
+            where_clauses.append("t.normalized_name LIKE %s")
             params.append(normalized_q)
 
         if cat:
@@ -351,6 +351,7 @@ async def upload(user: User = Depends(api_key_required), category: int = Form(..
         info = lt.torrent_info(torrent_download_path)
 
         torrent_name = info.name()
+        normalized_torrent_name = utils.normalize_search_string(torrent_name).lower()
         file_count = len(info.files())
         size = info.total_size()
         hash_v1, hash_v2 = utils.get_torrent_hashes(torrent_download_path)
@@ -363,7 +364,8 @@ async def upload(user: User = Depends(api_key_required), category: int = Form(..
     existing = await mysql.fetch_one("SELECT id, name, added_by_user_id FROM torrents WHERE hash_v1=%s OR hash_v2=%s", (hash_v1, hash_v2))
     if existing:
         if existing["added_by_user_id"] == user_id:
-            await mysql.execute("UPDATE torrents SET name = %s, last_seen = NOW() WHERE id = %s", (torrent_name, existing["id"]))
+            await mysql.execute("UPDATE torrents SET name = %s, normalized_name = %s, last_seen = NOW() WHERE id = %s",
+                                (torrent_name, normalized_torrent_name, existing["id"]))
             log.info(f"[UPLOAD] User '{user_label}' re-uploaded torrent, renamed to '{torrent_name}'")
         else:
             log.debug(f"[UPLOAD] User '{user_label}' uploaded duplicate torrent: '{torrent_name}'")
@@ -377,9 +379,9 @@ async def upload(user: User = Depends(api_key_required), category: int = Form(..
         os.unlink(torrent_download_path)
 
     await mysql.execute("""
-                        INSERT INTO torrents (name, torrent_path, size, category, hash_v1, hash_v2, files, added_on, added_by_user_id, last_seen)
-                        VALUES (%s, %s, %s, %s, %s, %s, %s, NOW(), %s, NOW())
-                        """, (torrent_name, torrent_save_path, size, category, hash_v1, hash_v2, file_count, user_id))
+                        INSERT INTO torrents (name, normalized_name, torrent_path, size, category, hash_v1, hash_v2, files, added_on, added_by_user_id, last_seen)
+                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, NOW(), %s, NOW())
+                        """, (torrent_name, normalized_torrent_name, torrent_save_path, size, category, hash_v1, hash_v2, file_count, user_id))
 
     log.info(f"[UPLOAD] User '{user_label}' uploaded torrent '{torrent_name}'")
 
