@@ -113,42 +113,32 @@ async def get_user_stats(user: User = Depends(api_key_required)):
 
     user_id = user.user_id
 
-    torrents_added_total = await mysql.fetch_one("SELECT COUNT(*) as total FROM torrents WHERE added_by_user_id = %s", (user_id,))
-    torrents_added_total = int(torrents_added_total.get("total", 0))
+    stats_query = """
+                  SELECT (SELECT COUNT(*) FROM torrents WHERE added_by_user_id = %s)   AS torrents_added_total, \
+                         (SELECT SUM(grabs) FROM torrents WHERE added_by_user_id = %s) AS grabs_total, \
+                         (SELECT downloaded FROM users WHERE id = %s)                  AS downloaded, \
+                         (SELECT uploaded FROM users WHERE id = %s)                    AS uploaded \
+                  """
+    stats = await mysql.fetch_one(stats_query, (user_id, user_id, user_id, user_id))
+
+    torrents_added_total = int(stats["torrents_added_total"] or 0)
+    grabs_total = int(stats["grabs_total"] or 0)
+    total_downloaded = stats["downloaded"] or 0
+    total_uploaded = stats["uploaded"] or 0
 
     seed_leech_query = """
-                       SELECT SUM(is_seed)  AS seeding,
-                              SUM(is_leech) AS leeching
-                       FROM (SELECT p.torrent_id,
-                                    MAX(IF(p.left_bytes = 0, 1, 0)) AS is_seed,
-                                    MAX(IF(p.left_bytes > 0, 1, 0)) AS is_leech
-                             FROM peers p
-                             WHERE p.user_id = %s
-                               AND p.last_seen > NOW() - INTERVAL %s SECOND
+                       SELECT SUM(is_seed) AS seeding, SUM(is_leech) AS leeching
+                       FROM (SELECT p.torrent_id, \
+                                    MAX(IF(p.left_bytes = 0, 1, 0)) AS is_seed, \
+                                    MAX(IF(p.left_bytes > 0, 1, 0)) AS is_leech \
+                             FROM peers p \
+                             WHERE p.user_id = %s \
+                               AND p.last_seen > NOW() - INTERVAL %s SECOND \
                              GROUP BY p.torrent_id) AS t \
                        """
-    seed_leech = await mysql.fetch_one(seed_leech_query, (user_id, int(PEER_TIMEOUT, )))
-    currently_seeding = int(seed_leech.get("seeding") or 0)
-    currently_leeching = int(seed_leech.get("leeching") or 0)
-
-    peers_total_query = """
-                        SELECT COUNT(*) as peers_total
-                        FROM peers p
-                                 JOIN torrents t ON t.id = p.torrent_id
-                        WHERE t.added_by_user_id = %s
-                          AND p.last_seen > NOW() - INTERVAL %s SECOND
-                          AND p.user_id != %s \
-                        """
-    peers_total = await mysql.fetch_one(peers_total_query, (user_id, int(PEER_TIMEOUT), user_id))
-    peers_total = int(peers_total.get("peers_total") or 0)
-
-    grabs_total_query = "SELECT SUM(grabs) as grabs FROM torrents WHERE added_by_user_id = %s"
-    grabs_total = await mysql.fetch_one(grabs_total_query, (user_id,))
-    grabs_total = int(grabs_total.get("grabs") or 0)
-
-    user_data = await mysql.fetch_one("SELECT downloaded, uploaded FROM users WHERE id = %s", (user_id,))
-    total_downloaded = user_data.get("downloaded") or 0
-    total_uploaded = user_data.get("uploaded") or 0
+    seed_leech = await mysql.fetch_one(seed_leech_query, (user_id, PEER_TIMEOUT))
+    currently_seeding = int(seed_leech["seeding"] or 0)
+    currently_leeching = int(seed_leech["leeching"] or 0)
 
     if total_downloaded > 0:
         server_ratio = total_uploaded / total_downloaded
@@ -157,8 +147,9 @@ async def get_user_stats(user: User = Depends(api_key_required)):
     else:
         server_ratio = 0.0
 
+    # TODO: remove deprecated key `peers_on_user_torrents`
     user_stats = {"user": user.user_label, "torrents_added_total": torrents_added_total, "currently_seeding": currently_seeding, "currently_leeching": currently_leeching,
-                  "peers_on_user_torrents": peers_total, "grabs_total": grabs_total, "total_download": total_downloaded, "total_upload": total_uploaded,
+                  "peers_on_user_torrents": 0, "grabs_total": grabs_total, "total_download": total_downloaded, "total_upload": total_uploaded,
                   "server_ratio": server_ratio}
 
     return JSONResponse(user_stats)
@@ -196,26 +187,18 @@ async def torznab_api(user: User = Depends(api_key_required), t: str = Query(...
 
         if q:
             normalized_q = f"%{utils.normalize_search_string(q).lower()}%"
-            where_clauses.append("LOWER(REGEXP_REPLACE(t.name, '[^a-z0-9]', '')) LIKE %s")
+            where_clauses.append("t.normalized_name LIKE %s")
             params.append(normalized_q)
 
         if cat:
             cats = [int(c) for c in cat.split(",")]
-            where_clauses.append(f"category IN ({",".join(["%s"] * len(cats))})")
+            where_clauses.append(f"t.category IN ({",".join(["%s"] * len(cats))})")
             params.extend(cats)
 
         where_sql = " AND ".join(where_clauses) if where_clauses else "1=1"
 
-        count_query = f"""
-            SELECT COUNT(*) AS total
-            FROM torrents t
-            WHERE {where_sql}
-        """
-        total_result = await mysql.fetch_one(count_query, tuple(params))
-        total_matches = total_result["total"] if total_result else 0
-
         query = f"""
-        SELECT *
+            SELECT *, COUNT(*) OVER() AS total_matches
             FROM (
                 SELECT t.*,
                        COALESCE(SUM(IF(p.left_bytes = 0, 1, 0)), 0) AS seeders,
@@ -233,6 +216,11 @@ async def torznab_api(user: User = Depends(api_key_required), t: str = Query(...
 
         query_params = (int(PEER_TIMEOUT),) + tuple(params) + (int(limit), int(offset))
         results = await mysql.fetch_all(query, query_params)
+
+        if results:
+            total_matches = results[0]["total_matches"]
+        else:
+            total_matches = 0
 
         filtered_results = []
         for t_entry in results:
@@ -354,6 +342,7 @@ async def upload(user: User = Depends(api_key_required), category: int = Form(..
         info = lt.torrent_info(torrent_download_path)
 
         torrent_name = info.name()
+        normalized_torrent_name = utils.normalize_search_string(torrent_name).lower()
         file_count = len(info.files())
         size = info.total_size()
         hash_v1, hash_v2 = utils.get_torrent_hashes(torrent_download_path)
@@ -366,7 +355,8 @@ async def upload(user: User = Depends(api_key_required), category: int = Form(..
     existing = await mysql.fetch_one("SELECT id, name, added_by_user_id FROM torrents WHERE hash_v1=%s OR hash_v2=%s", (hash_v1, hash_v2))
     if existing:
         if existing["added_by_user_id"] == user_id:
-            await mysql.execute("UPDATE torrents SET name = %s, last_seen = NOW() WHERE id = %s", (torrent_name, existing["id"]))
+            await mysql.execute("UPDATE torrents SET name = %s, normalized_name = %s, last_seen = NOW() WHERE id = %s",
+                                (torrent_name, normalized_torrent_name, existing["id"]))
             log.info(f"[UPLOAD] User '{user_label}' re-uploaded torrent, renamed to '{torrent_name}'")
         else:
             log.debug(f"[UPLOAD] User '{user_label}' uploaded duplicate torrent: '{torrent_name}'")
@@ -380,9 +370,9 @@ async def upload(user: User = Depends(api_key_required), category: int = Form(..
         os.unlink(torrent_download_path)
 
     await mysql.execute("""
-                        INSERT INTO torrents (name, torrent_path, size, category, hash_v1, hash_v2, files, added_on, added_by_user_id, last_seen)
-                        VALUES (%s, %s, %s, %s, %s, %s, %s, NOW(), %s, NOW())
-                        """, (torrent_name, torrent_save_path, size, category, hash_v1, hash_v2, file_count, user_id))
+                        INSERT INTO torrents (name, normalized_name, torrent_path, size, category, hash_v1, hash_v2, files, added_on, added_by_user_id, last_seen)
+                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, NOW(), %s, NOW())
+                        """, (torrent_name, normalized_torrent_name, torrent_save_path, size, category, hash_v1, hash_v2, file_count, user_id))
 
     log.info(f"[UPLOAD] User '{user_label}' uploaded torrent '{torrent_name}'")
 
