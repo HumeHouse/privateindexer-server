@@ -235,8 +235,17 @@ async def torznab_api(user: User = Depends(api_key_required), t: str = Query(...
 
         delta = datetime.datetime.now() - before
         query_duration = f"{round(delta.total_seconds() * 1000)} ms"
-        log.info(f"[TORZNAB] User '{user.user_label}' searched '{q}' in category {cat} ({query_duration}): "
-                 f"returned {len(results)} results, found {total_matches} total")
+        search_params = {
+            "cat": cat,
+            "season": season,
+            "ep": ep,
+            "imdbid": imdbid,
+        }
+        search_params = ",".join(f"{k}={v}" for k, v in search_params.items() if v is not None)
+        log.info(
+            f"[TORZNAB] User '{user.user_label}' searched '{q}' with params {search_params} ({query_duration}): "
+            f"returned {len(results)} results, found {total_matches} total"
+        )
 
         items = []
         for t_entry in results:
