@@ -195,6 +195,14 @@ async def torznab_api(user: User = Depends(api_key_required), t: str = Query(...
             where_clauses.append(f"t.category IN ({",".join(["%s"] * len(cats))})")
             params.extend(cats)
 
+        if t == "tvsearch":
+            if season is not None:
+                where_clauses.append("t.season = %s")
+                params.append(int(str(season).lstrip("0")))
+            if ep is not None:
+                where_clauses.append("t.episode = %s")
+                params.append(int(str(ep).lstrip("0")))
+
         where_sql = " AND ".join(where_clauses) if where_clauses else "1=1"
 
         query = f"""
@@ -216,30 +224,15 @@ async def torznab_api(user: User = Depends(api_key_required), t: str = Query(...
 
         query_params = (int(PEER_TIMEOUT),) + tuple(params) + (int(limit), int(offset))
         results = await mysql.fetch_all(query, query_params)
-
-        if results:
-            total_matches = results[0]["total_matches"]
-        else:
-            total_matches = 0
-
-        filtered_results = []
-        for t_entry in results:
-            s, e = utils.extract_season_episode(t_entry["name"])
-            if season is not None and s != season:
-                continue
-            if ep is not None and e != ep:
-                continue
-            t_entry["season"] = s
-            t_entry["episode"] = e
-            filtered_results.append(t_entry)
+        total_matches = results[0]["total_matches"] if results else 0
 
         delta = datetime.datetime.now() - before
         query_duration = f"{round(delta.total_seconds() * 1000)} ms"
         log.info(f"[TORZNAB] User '{user.user_label}' searched '{q}' in category {cat} ({query_duration}): "
-                 f"returned {len(filtered_results)} results, found {total_matches} total")
+                 f"returned {len(results)} results, found {total_matches} total")
 
         items = []
-        for t_entry in filtered_results:
+        for t_entry in results:
             seeders = t_entry["seeders"]
             leechers = t_entry["leechers"]
 
@@ -260,8 +253,8 @@ async def torznab_api(user: User = Depends(api_key_required), t: str = Query(...
               <torznab:attr name="peers" value="{seeders + leechers}"/>
               <torznab:attr name="grabs" value="{t_entry['grabs']}"/>
               <torznab:attr name="infohash" value="{t_entry['hash_v2']}"/>
-              {f"<torznab:attr name='season' value='{t_entry["season"]}'/>" if t_entry["season"] else ""}
-              {f"<torznab:attr name='episode' value='{t_entry["episode"]}'/>" if t_entry["episode"] else ""}
+              {f"<torznab:attr name=\"season\" value=\"{t_entry["season"]}\"/>" if t_entry.get("season") else ""}
+              {f"<torznab:attr name=\"episode\" value=\"{t_entry["episode"]}\"/>" if t_entry.get("episode") else ""}
             </item>
             """
             items.append(item)
