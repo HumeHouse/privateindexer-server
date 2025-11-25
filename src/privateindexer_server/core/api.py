@@ -185,12 +185,12 @@ async def torznab_api(user: User = Depends(api_key_required), t: str = Query(...
         where_clauses = []
         params = []
 
-        if q:
+        if q is not None:
             normalized_q = f"%{utils.normalize_search_string(q).lower()}%"
             where_clauses.append("t.normalized_name LIKE %s")
             params.append(normalized_q)
 
-        if cat:
+        if cat is not None:
             cats = [int(c) for c in cat.split(",")]
             where_clauses.append(f"t.category IN ({",".join(["%s"] * len(cats))})")
             params.extend(cats)
