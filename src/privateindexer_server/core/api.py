@@ -157,7 +157,7 @@ async def get_user_stats(user: User = Depends(api_key_required)):
 
 @router.get("/api")
 async def torznab_api(user: User = Depends(api_key_required), t: str = Query(...), q: str = Query(""), cat: str = Query(None), season: int = Query(None),
-                      ep: int = Query(None), limit: int = Query(100), offset: int = Query(0)):
+                      ep: int = Query(None), imdbid: int = Query(None), limit: int = Query(100), offset: int = Query(0)):
     if t == "caps":
         log.debug(f"[TORZNAB] User '{user.user_label}' sent capability request")
         xml = f"""<?xml version="1.0" encoding="UTF-8"?>
@@ -169,8 +169,8 @@ async def torznab_api(user: User = Depends(api_key_required), t: str = Query(...
             </categories>     
             <searching>
                 <search available="yes" supportedParams="q"/>
-                <tv-search available="yes" supportedParams="q,season,ep"/>
-                <movie-search available="yes" supportedParams="q"/>
+                <tv-search available="yes" supportedParams="q,season,ep,imdbid"/>
+                <movie-search available="yes" supportedParams="q,imdbid"/>
                 <music-search available="no"/>
                 <audio-search available="no"/>
                 <book-search available="no"/>
@@ -205,6 +205,10 @@ async def torznab_api(user: User = Depends(api_key_required), t: str = Query(...
         elif t == "moviesearch":
             where_clauses.append("t.season = NULL")
             where_clauses.append("t.episode = NULL")
+
+        if imdbid is not None:
+            where_clauses.append("t.imdbid = %s")
+            params.append(imdbid)
 
         where_sql = " AND ".join(where_clauses) if where_clauses else "1=1"
 
@@ -256,6 +260,7 @@ async def torznab_api(user: User = Depends(api_key_required), t: str = Query(...
               <torznab:attr name="peers" value="{seeders + leechers}"/>
               <torznab:attr name="grabs" value="{t_entry['grabs']}"/>
               <torznab:attr name="infohash" value="{t_entry['hash_v2']}"/>
+              {f"<torznab:attr name=\"imdbid\" value=\"{t_entry["imdbid"]}\"/>" if t_entry.get("imdbid") else ""}
               {f"<torznab:attr name=\"season\" value=\"{t_entry["season"]}\"/>" if t_entry.get("season") else ""}
               {f"<torznab:attr name=\"episode\" value=\"{t_entry["episode"]}\"/>" if t_entry.get("episode") else ""}
             </item>
