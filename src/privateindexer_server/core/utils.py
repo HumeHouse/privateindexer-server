@@ -109,10 +109,10 @@ def find_matching_torrent(torrent_hash_v1: str, torrent_hash_v2: str) -> tuple[s
     return found_match, torrent_hash_v2
 
 
-def extract_season_episode(name: str):
+def extract_season_episode(name: str) -> tuple[int, int]:
     match = SEASON_EPISODE_REGEX.search(name)
     if not match:
         return None, None
     season = match.group("season") or match.group("season_alt")
     episode = match.group("episode") or match.group("episode_alt")
-    return int(season), int(episode)
+    return int(season.lstrip("0")), int(episode.lstrip("0"))
