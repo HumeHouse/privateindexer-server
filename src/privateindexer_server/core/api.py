@@ -324,7 +324,8 @@ async def grab(user: User = Depends(api_key_required), hash_v1: str = Query(None
 
 
 @router.post("/upload")
-async def upload(user: User = Depends(api_key_required), category: int = Form(...), torrent_file: UploadFile = File(...)):
+# TODO: imdbid will need to become a required form parameter in upcoming versions
+async def upload(user: User = Depends(api_key_required), category: int = Form(...), torrent_file: UploadFile = File(...), imdbid: int = Form(None)):
     user_id = user.user_id
     user_label = user.user_label
 
@@ -373,10 +374,11 @@ async def upload(user: User = Depends(api_key_required), category: int = Form(..
     season_match, episode_match = utils.extract_season_episode(torrent_name)
 
     await mysql.execute("""
-                        INSERT INTO torrents (name, normalized_name, season, episode, torrent_path, size, category, hash_v1, hash_v2, files, added_on, added_by_user_id, last_seen)
-                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, NOW(), %s, NOW())
+                        INSERT INTO torrents (name, normalized_name, season, episode, imdbid, torrent_path, size, category, hash_v1, hash_v2, files, added_on, added_by_user_id, last_seen)
+                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, NOW(), %s, NOW())
                         """,
-                        (torrent_name, normalized_torrent_name, season_match, episode_match, torrent_save_path, size, category, hash_v1, hash_v2, file_count, user_id))
+                        (torrent_name, normalized_torrent_name, season_match, episode_match, imdbid, torrent_save_path, size, category, hash_v1, hash_v2, file_count,
+                         user_id))
 
     log.info(f"[UPLOAD] User '{user_label}' uploaded torrent '{torrent_name}'")
 
