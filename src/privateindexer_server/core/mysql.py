@@ -57,6 +57,8 @@ TORRENTS_TABLE_SQL = """
                          `id`               bigint unsigned                         NOT NULL AUTO_INCREMENT,
                          `name`             varchar(255) COLLATE utf8mb4_general_ci NOT NULL,
                          `normalized_name`  varchar(255) COLLATE utf8mb4_general_ci NOT NULL,
+                         `season`           smallint                                NULL,
+                         `episode`          smallint                                NULL,
                          `torrent_path`     text COLLATE utf8mb4_general_ci,
                          `size`             bigint                                  NOT NULL,
                          `category`         int                                     NOT NULL,
