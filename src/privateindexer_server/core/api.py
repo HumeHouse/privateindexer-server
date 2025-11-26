@@ -157,7 +157,7 @@ async def get_user_stats(user: User = Depends(api_key_required)):
 
 @router.get("/api")
 async def torznab_api(user: User = Depends(api_key_required), t: str = Query(...), q: str = Query(""), cat: str = Query(None), season: int = Query(None),
-                      ep: int = Query(None), imdbid: int = Query(None), limit: int = Query(100), offset: int = Query(0)):
+                      ep: int = Query(None), imdbid: str = Query(None), limit: int = Query(100), offset: int = Query(0)):
     if t == "caps":
         log.debug(f"[TORZNAB] User '{user.user_label}' sent capability request")
         xml = f"""<?xml version="1.0" encoding="UTF-8"?>
@@ -334,7 +334,7 @@ async def grab(user: User = Depends(api_key_required), hash_v1: str = Query(None
 
 @router.post("/upload")
 # TODO: imdbid will need to become a required form parameter in upcoming versions
-async def upload(user: User = Depends(api_key_required), category: int = Form(...), torrent_file: UploadFile = File(...), imdbid: int = Form(None)):
+async def upload(user: User = Depends(api_key_required), category: int = Form(...), torrent_file: UploadFile = File(...), imdbid: str = Form(None)):
     user_id = user.user_id
     user_label = user.user_label
 
