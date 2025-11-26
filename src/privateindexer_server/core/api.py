@@ -157,7 +157,7 @@ async def get_user_stats(user: User = Depends(api_key_required)):
 
 @router.get("/api")
 async def torznab_api(user: User = Depends(api_key_required), t: str = Query(...), q: str = Query(""), cat: str = Query(None), season: int = Query(None),
-                      ep: int = Query(None), imdbid: str = Query(None), limit: int = Query(100), offset: int = Query(0)):
+                      ep: int = Query(None), imdbid: str = Query(None), tmdbid: int = Query(None), limit: int = Query(100), offset: int = Query(0)):
     if t == "caps":
         log.debug(f"[TORZNAB] User '{user.user_label}' sent capability request")
         xml = f"""<?xml version="1.0" encoding="UTF-8"?>
@@ -166,11 +166,11 @@ async def torznab_api(user: User = Depends(api_key_required), t: str = Query(...
             <limits default="100" max="1000"/>
             <categories>
             {''.join([f'<category id="{c["id"]}" name="{c["name"]}"/>' for c in CATEGORIES.values()])}
-            </categories>     
+            </categories>
             <searching>
                 <search available="yes" supportedParams="q"/>
-                <tv-search available="yes" supportedParams="q,season,ep,imdbid"/>
-                <movie-search available="yes" supportedParams="q,imdbid"/>
+                <tv-search available="yes" supportedParams="q,season,ep,imdbid,tmdbid"/>
+                <movie-search available="yes" supportedParams="q,imdbid,tmdbid"/>
                 <music-search available="no"/>
                 <audio-search available="no"/>
                 <book-search available="no"/>
@@ -210,6 +210,10 @@ async def torznab_api(user: User = Depends(api_key_required), t: str = Query(...
             where_clauses.append("t.imdbid = %s")
             params.append(imdbid)
 
+        if tmdbid is not None:
+            where_clauses.append("t.tmdbid = %s")
+            params.append(tmdbid)
+
         where_sql = " AND ".join(where_clauses) if where_clauses else "1=1"
 
         query = f"""
@@ -240,6 +244,7 @@ async def torznab_api(user: User = Depends(api_key_required), t: str = Query(...
             "season": season,
             "ep": ep,
             "imdbid": imdbid,
+            "tmdbid": tmdbid,
         }
         search_params = ",".join(f"{k}={v}" for k, v in search_params.items() if v is not None)
         log.info(
@@ -270,6 +275,7 @@ async def torznab_api(user: User = Depends(api_key_required), t: str = Query(...
               <torznab:attr name="grabs" value="{t_entry['grabs']}"/>
               <torznab:attr name="infohash" value="{t_entry['hash_v2']}"/>
               {f"<torznab:attr name=\"imdbid\" value=\"{t_entry["imdbid"]}\"/>" if t_entry.get("imdbid") else ""}
+              {f"<torznab:attr name=\"tmdbid\" value=\"{t_entry["tmdbid"]}\"/>" if t_entry.get("tmdbid") else ""}
               {f"<torznab:attr name=\"season\" value=\"{t_entry["season"]}\"/>" if t_entry.get("season") else ""}
               {f"<torznab:attr name=\"episode\" value=\"{t_entry["episode"]}\"/>" if t_entry.get("episode") else ""}
             </item>
@@ -334,7 +340,8 @@ async def grab(user: User = Depends(api_key_required), hash_v1: str = Query(None
 
 @router.post("/upload")
 # TODO: imdbid will need to become a required form parameter in upcoming versions
-async def upload(user: User = Depends(api_key_required), category: int = Form(...), torrent_file: UploadFile = File(...), imdbid: str = Form(None)):
+async def upload(user: User = Depends(api_key_required), category: int = Form(...), torrent_file: UploadFile = File(...), imdbid: str = Form(None),
+                 tmdbid: int = Form(None)):
     user_id = user.user_id
     user_label = user.user_label
 
@@ -383,10 +390,10 @@ async def upload(user: User = Depends(api_key_required), category: int = Form(..
     season_match, episode_match = utils.extract_season_episode(torrent_name)
 
     await mysql.execute("""
-                        INSERT INTO torrents (name, normalized_name, season, episode, imdbid, torrent_path, size, category, hash_v1, hash_v2, files, added_on, added_by_user_id, last_seen)
-                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, NOW(), %s, NOW())
+                        INSERT INTO torrents (name, normalized_name, season, episode, imdbid, tmdbid, torrent_path, size, category, hash_v1, hash_v2, files, added_on, added_by_user_id, last_seen)
+                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, NOW(), %s, NOW())
                         """,
-                        (torrent_name, normalized_torrent_name, season_match, episode_match, imdbid, torrent_save_path, size, category, hash_v1, hash_v2, file_count,
+                        (torrent_name, normalized_torrent_name, season_match, episode_match, imdbid, tmdbid, torrent_save_path, size, category, hash_v1, hash_v2, file_count,
                          user_id))
 
     log.info(f"[UPLOAD] User '{user_label}' uploaded torrent '{torrent_name}'")
