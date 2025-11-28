@@ -93,15 +93,17 @@ async def current_user(user: User = Depends(api_key_required), request: Request 
     announce_ip = announce_ip or utils.get_client_ip(request)
     port = port or 6881
 
-    log.info(f"[USER] User '{user.user_label}' ({announce_ip}:{port}) connected with PrivateIndexer client v{v}")
-    await mysql.execute("UPDATE users SET client_version = %s, last_ip = %s, last_seen=NOW() WHERE id=%s", (v, f"{announce_ip}:{port}", user.user_id,))
-
     reachable = False
     try:
         with socket.create_connection((announce_ip, port), timeout=5):
             reachable = True
+            log.warning(f"[USER] User '{user.user_label}' ({announce_ip}:{port} - UNREACHABLE) connected with PrivateIndexer client v{v}")
     except (socket.timeout, ConnectionRefusedError, OSError):
+        log.info(f"[USER] User '{user.user_label}' ({announce_ip}:{port}) connected with PrivateIndexer client v{v}")
         pass
+
+    await mysql.execute("UPDATE users SET client_version = %s, last_ip = %s, last_seen=NOW(), reachable = %s WHERE id=%s",
+                        (v, f"{announce_ip}:{port}", reachable, user.user_id,))
 
     user_data = {"user_label": user.user_label, "announce_ip": announce_ip, "is_reachable": reachable, }
     return JSONResponse(user_data)
