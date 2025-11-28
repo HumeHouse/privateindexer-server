@@ -390,10 +390,12 @@ async def upload(user: User = Depends(api_key_required), category: int = Form(..
     season_match, episode_match = utils.extract_season_episode(torrent_name)
 
     await mysql.execute("""
-                        INSERT INTO torrents (name, normalized_name, season, episode, imdbid, tmdbid, torrent_path, size, category, hash_v1, hash_v2, files, added_on, added_by_user_id, last_seen)
+                        INSERT INTO torrents (name, normalized_name, season, episode, imdbid, tmdbid, torrent_path, size, category, hash_v1, hash_v2, files, added_on,
+                                              added_by_user_id, last_seen)
                         VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, NOW(), %s, NOW())
                         """,
-                        (torrent_name, normalized_torrent_name, season_match, episode_match, imdbid, tmdbid, torrent_save_path, size, category, hash_v1, hash_v2, file_count,
+                        (torrent_name, normalized_torrent_name, season_match, episode_match, imdbid, tmdbid, torrent_save_path, size, category, hash_v1, hash_v2,
+                         file_count,
                          user_id))
 
     log.info(f"[UPLOAD] User '{user_label}' uploaded torrent '{torrent_name}'")

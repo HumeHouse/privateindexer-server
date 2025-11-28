@@ -60,7 +60,7 @@ TORRENTS_TABLE_SQL = """
                          `season`           smallint                                NULL,
                          `episode`          smallint                                NULL,
                          `imdbid`           char                                    NULL,
-                         `tmdbid`           int                                    NULL,
+                         `tmdbid`           int                                     NULL,
                          `torrent_path`     text COLLATE utf8mb4_general_ci,
                          `size`             bigint                                  NOT NULL,
                          `category`         int                                     NOT NULL,
