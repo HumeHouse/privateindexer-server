@@ -19,6 +19,7 @@ USERS_TABLE_SQL = """
                       `client_version` text COLLATE utf8mb4_general_ci,
                       `last_ip`        varchar(45) COLLATE utf8mb4_general_ci           DEFAULT NULL,
                       `last_seen`      datetime                                         DEFAULT NULL ON UPDATE CURRENT_TIMESTAMP,
+                      `reachable`      tinyint                                 NOT NULL DEFAULT 0,
                       PRIMARY KEY (`id`),
                       UNIQUE KEY `api_key` (`api_key`)
                   ) ENGINE = InnoDB
@@ -60,7 +61,7 @@ TORRENTS_TABLE_SQL = """
                          `season`           smallint                                NULL,
                          `episode`          smallint                                NULL,
                          `imdbid`           char                                    NULL,
-                         `tmdbid`           int                                    NULL,
+                         `tmdbid`           int                                     NULL,
                          `torrent_path`     text COLLATE utf8mb4_general_ci,
                          `size`             bigint                                  NOT NULL,
                          `category`         int                                     NOT NULL,
