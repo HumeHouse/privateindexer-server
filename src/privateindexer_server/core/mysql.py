@@ -60,7 +60,7 @@ TORRENTS_TABLE_SQL = """
                          `normalized_name`  varchar(255) COLLATE utf8mb4_general_ci NOT NULL,
                          `season`           smallint                                NULL,
                          `episode`          smallint                                NULL,
-                         `imdbid`           char                                    NULL,
+                         `imdbid`           varchar(64)                             NULL,
                          `tmdbid`           int                                     NULL,
                          `torrent_path`     text COLLATE utf8mb4_general_ci,
                          `size`             bigint                                  NOT NULL,
