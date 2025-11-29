@@ -187,8 +187,8 @@ async def torznab_api(user: User = Depends(api_key_required), t: str = Query(...
         where_clauses = []
         params = []
 
-        # if no query is specified, assume an RSS query is being made
-        if not q or q.strip() == "":
+        # if no query is specified in a regular search, assume an RSS query is being made
+        if t == "search" and (not q or q.strip() == ""):
 
             if cat is not None:
                 cats = [int(c) for c in cat.split(",")]
