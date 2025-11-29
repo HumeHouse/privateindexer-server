@@ -187,6 +187,60 @@ async def torznab_api(user: User = Depends(api_key_required), t: str = Query(...
         where_clauses = []
         params = []
 
+        # if no query is specified, assume an RSS query is being made
+        if not q or q.strip() == "":
+
+            if cat is not None:
+                cats = [int(c) for c in cat.split(",")]
+                where_clauses.append(f"category IN ({",".join(["%s"] * len(cats))})")
+                params.extend(cats)
+
+            where_sql = " AND ".join(where_clauses) if where_clauses else "1=1"
+
+            # perform a lightweight scan of just most recent torrents
+            rss_query = f"SELECT * FROM torrents WHERE {where_sql} ORDER BY added_on DESC LIMIT %s OFFSET %s"
+            query_params = tuple(params) + (int(limit), int(offset))
+            results = await mysql.fetch_all(rss_query, query_params)
+
+            items = []
+            for t_entry in results:
+                torrent_url_with_key = f"https://indexer.humehouse.com/grab?hash_v2={t_entry['hash_v2']}&apikey={user.apikey}"
+                items.append(f"""
+                    <item>
+                      <title>{escape(t_entry["name"])}</title>
+                      <guid isPermaLink="false">humehouse-{t_entry['hash_v2']}</guid>
+                      <link>{escape(torrent_url_with_key)}</link>
+                      <enclosure url="{escape(torrent_url_with_key)}" length="{t_entry["size"]}" type="application/x-bittorrent"/>
+                      <size>{t_entry["size"]}</size>
+                      <pubDate>{t_entry["added_on"].strftime("%a, %d %b %Y %H:%M:%S GMT")}</pubDate>
+                      <category>{t_entry["category"]}</category>
+                      <torznab:attr name="category" value="{t_entry["category"]}" />
+                      <torznab:attr name="files" value="{t_entry['files']}"/>
+                      <torznab:attr name="grabs" value="{t_entry['grabs']}"/>
+                      <torznab:attr name="infohash" value="{t_entry['hash_v2']}"/>
+                      {f"<torznab:attr name=\"imdbid\" value=\"{t_entry["imdbid"]}\"/>" if t_entry.get("imdbid") else ""}
+                      {f"<torznab:attr name=\"tmdbid\" value=\"{t_entry["tmdbid"]}\"/>" if t_entry.get("tmdbid") else ""}
+                      {f"<torznab:attr name=\"season\" value=\"{t_entry["season"]}\"/>" if t_entry.get("season") else ""}
+                      {f"<torznab:attr name=\"episode\" value=\"{t_entry["episode"]}\"/>" if t_entry.get("episode") else ""}
+                      </item>
+                """)
+
+            xml = f"""<?xml version="1.0" encoding="UTF-8" ?>
+            <rss version="2.0" xmlns:torznab="http://torznab.com/schemas/2015/feed">
+              <channel>
+                <title>HumeHouse Private Indexer</title>
+                <description>For friends of David</description>
+                {"".join(items)}
+              </channel>
+            </rss>"""
+
+            delta = datetime.datetime.now() - before
+            query_duration = f"{round(delta.total_seconds() * 1000)} ms"
+
+            log.info(f"[TORZNAB] User '{user.user_label}' performed RSS feed query in category {cat} ({query_duration}): returned {len(results)} results")
+
+            return Response(content=xml, media_type="application/xml")
+
         if q is not None:
             normalized_q = f"%{utils.normalize_search_string(q).lower()}%"
             where_clauses.append("t.normalized_name LIKE %s")
@@ -244,18 +298,10 @@ async def torznab_api(user: User = Depends(api_key_required), t: str = Query(...
 
         delta = datetime.datetime.now() - before
         query_duration = f"{round(delta.total_seconds() * 1000)} ms"
-        search_params = {
-            "cat": cat,
-            "season": season,
-            "ep": ep,
-            "imdbid": imdbid,
-            "tmdbid": tmdbid,
-        }
+        search_params = {"cat": cat, "season": season, "ep": ep, "imdbid": imdbid, "tmdbid": tmdbid, }
         search_params = ",".join(f"{k}={v}" for k, v in search_params.items() if v is not None)
-        log.info(
-            f"[TORZNAB] User '{user.user_label}' searched '{q}' with params {search_params} ({query_duration}): "
-            f"returned {len(results)} results, found {total_matches} total"
-        )
+        log.info(f"[TORZNAB] User '{user.user_label}' searched '{q}' with params {search_params} ({query_duration}): "
+                 f"returned {len(results)} results, found {total_matches} total")
 
         items = []
         for t_entry in results:
@@ -401,10 +447,8 @@ async def upload(user: User = Depends(api_key_required), category: int = Form(..
                         INSERT INTO torrents (name, normalized_name, season, episode, imdbid, tmdbid, torrent_path, size, category, hash_v1, hash_v2, files, added_on,
                                               added_by_user_id, last_seen)
                         VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, NOW(), %s, NOW())
-                        """,
-                        (torrent_name, normalized_torrent_name, season_match, episode_match, imdbid, tmdbid, torrent_save_path, size, category, hash_v1, hash_v2,
-                         file_count,
-                         user_id))
+                        """, (torrent_name, normalized_torrent_name, season_match, episode_match, imdbid, tmdbid, torrent_save_path, size, category, hash_v1, hash_v2,
+                              file_count, user_id))
 
     log.info(f"[UPLOAD] User '{user_label}' uploaded torrent '{torrent_name}'")
 
