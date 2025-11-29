@@ -201,12 +201,15 @@ async def torznab_api(user: User = Depends(api_key_required), t: str = Query(...
             if season is not None:
                 where_clauses.append("t.season = %s")
                 params.append(int(season))
-            if ep is not None:
-                where_clauses.append("t.episode = %s")
-                params.append(int(ep))
+
+                if ep is not None:
+                    where_clauses.append("t.episode = %s")
+                    params.append(int(ep))
+                else:
+                    where_clauses.append("t.episode IS NULL")
         elif t == "moviesearch":
-            where_clauses.append("t.season = NULL")
-            where_clauses.append("t.episode = NULL")
+            where_clauses.append("t.season IS NULL")
+            where_clauses.append("t.episode IS NULL")
 
         if imdbid is not None:
             where_clauses.append("t.imdbid = %s")
