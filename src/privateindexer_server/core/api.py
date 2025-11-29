@@ -341,9 +341,9 @@ async def grab(user: User = Depends(api_key_required), hash_v1: str = Query(None
 
 
 @router.post("/upload")
-# TODO: imdbid will need to become a required form parameter in upcoming versions
-async def upload(user: User = Depends(api_key_required), category: int = Form(...), torrent_file: UploadFile = File(...), imdbid: str = Form(None),
-                 tmdbid: int = Form(None)):
+# TODO: require torrent_name in next couple client releases
+async def upload(user: User = Depends(api_key_required), category: int = Form(...), torrent_file: UploadFile = File(...), torrent_name: str = Form(None),
+                 imdbid: str = Form(None), tmdbid: int = Form(None)):
     user_id = user.user_id
     user_label = user.user_label
 
@@ -361,7 +361,10 @@ async def upload(user: User = Depends(api_key_required), category: int = Form(..
     try:
         info = lt.torrent_info(torrent_download_path)
 
-        torrent_name = info.name()
+        # TODO: remove this check in next couple client releases
+        if not torrent_name:
+            torrent_name = info.name()
+
         normalized_torrent_name = utils.normalize_search_string(torrent_name).lower()
         file_count = len(info.files())
         size = info.total_size()
