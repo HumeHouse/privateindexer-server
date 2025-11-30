@@ -157,7 +157,8 @@ async def get_user_stats(user: User = Depends(api_key_required)):
 
 @router.get("/api")
 async def torznab_api(user: User = Depends(api_key_required), t: str = Query(...), q: str = Query(""), cat: str = Query(None), season: int = Query(None),
-                      ep: int = Query(None), imdbid: str = Query(None), tmdbid: int = Query(None), limit: int = Query(100), offset: int = Query(0)):
+                      ep: int = Query(None), imdbid: str = Query(None), tmdbid: int = Query(None), tvdbid: int = Query(None),
+                      limit: int = Query(100), offset: int = Query(0)):
     if t == "caps":
         log.debug(f"[TORZNAB] User '{user.user_label}' sent capability request")
         xml = f"""<?xml version="1.0" encoding="UTF-8"?>
@@ -169,7 +170,7 @@ async def torznab_api(user: User = Depends(api_key_required), t: str = Query(...
             </categories>
             <searching>
                 <search available="yes" supportedParams="q"/>
-                <tv-search available="yes" supportedParams="q,season,ep,imdbid,tmdbid"/>
+                <tv-search available="yes" supportedParams="q,season,ep,imdbid,tmdbid,tvdbid"/>
                 <movie-search available="yes" supportedParams="q,imdbid,tmdbid"/>
                 <music-search available="no"/>
                 <audio-search available="no"/>
@@ -218,6 +219,7 @@ async def torznab_api(user: User = Depends(api_key_required), t: str = Query(...
                       <torznab:attr name="infohash" value="{t_entry['hash_v2']}"/>
                       {f"<torznab:attr name=\"imdbid\" value=\"{t_entry["imdbid"]}\"/>" if t_entry.get("imdbid") else ""}
                       {f"<torznab:attr name=\"tmdbid\" value=\"{t_entry["tmdbid"]}\"/>" if t_entry.get("tmdbid") else ""}
+                      {f"<torznab:attr name=\"tvdbid\" value=\"{t_entry["tvdbid"]}\"/>" if t_entry.get("tvdbid") else ""}
                       {f"<torznab:attr name=\"season\" value=\"{t_entry["season"]}\"/>" if t_entry.get("season") else ""}
                       {f"<torznab:attr name=\"episode\" value=\"{t_entry["episode"]}\"/>" if t_entry.get("episode") else ""}
                       </item>
@@ -271,6 +273,10 @@ async def torznab_api(user: User = Depends(api_key_required), t: str = Query(...
             where_clauses.append("t.tmdbid = %s")
             params.append(tmdbid)
 
+        if tvdbid is not None:
+            where_clauses.append("t.tvdbid = %s")
+            params.append(tvdbid)
+
         where_sql = " AND ".join(where_clauses) if where_clauses else "1=1"
 
         query = f"""
@@ -296,7 +302,7 @@ async def torznab_api(user: User = Depends(api_key_required), t: str = Query(...
 
         delta = datetime.datetime.now() - before
         query_duration = f"{round(delta.total_seconds() * 1000)} ms"
-        search_params = {"cat": cat, "season": season, "ep": ep, "imdbid": imdbid, "tmdbid": tmdbid, }
+        search_params = {"cat": cat, "season": season, "ep": ep, "imdbid": imdbid, "tmdbid": tmdbid, "tvdbid": tvdbid, }
         search_params = ",".join(f"{k}={v}" for k, v in search_params.items() if v is not None)
         log.info(f"[TORZNAB] User '{user.user_label}' searched '{q}' with params {search_params} ({query_duration}): "
                  f"returned {len(results)} results, found {total_matches} total")
@@ -325,6 +331,7 @@ async def torznab_api(user: User = Depends(api_key_required), t: str = Query(...
               <torznab:attr name="infohash" value="{t_entry['hash_v2']}"/>
               {f"<torznab:attr name=\"imdbid\" value=\"{t_entry["imdbid"]}\"/>" if t_entry.get("imdbid") else ""}
               {f"<torznab:attr name=\"tmdbid\" value=\"{t_entry["tmdbid"]}\"/>" if t_entry.get("tmdbid") else ""}
+              {f"<torznab:attr name=\"tvdbid\" value=\"{t_entry["tvdbid"]}\"/>" if t_entry.get("tvdbid") else ""}
               {f"<torznab:attr name=\"season\" value=\"{t_entry["season"]}\"/>" if t_entry.get("season") else ""}
               {f"<torznab:attr name=\"episode\" value=\"{t_entry["episode"]}\"/>" if t_entry.get("episode") else ""}
             </item>
