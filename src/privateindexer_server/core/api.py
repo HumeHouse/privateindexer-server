@@ -149,10 +149,8 @@ async def get_user_stats(user: User = Depends(api_key_required)):
     else:
         server_ratio = 0.0
 
-    # TODO: remove deprecated key `peers_on_user_torrents`
     user_stats = {"user": user.user_label, "torrents_added_total": torrents_added_total, "currently_seeding": currently_seeding, "currently_leeching": currently_leeching,
-                  "peers_on_user_torrents": 0, "grabs_total": grabs_total, "total_download": total_downloaded, "total_upload": total_uploaded,
-                  "server_ratio": server_ratio}
+                  "grabs_total": grabs_total, "total_download": total_downloaded, "total_upload": total_uploaded, "server_ratio": server_ratio}
 
     return JSONResponse(user_stats)
 
@@ -392,8 +390,7 @@ async def grab(user: User = Depends(api_key_required), hash_v1: str = Query(None
 
 
 @router.post("/upload")
-# TODO: require torrent_name in next couple client releases
-async def upload(user: User = Depends(api_key_required), category: int = Form(...), torrent_file: UploadFile = File(...), torrent_name: str = Form(None),
+async def upload(user: User = Depends(api_key_required), category: int = Form(...), torrent_file: UploadFile = File(...), torrent_name: str = Form(...),
                  imdbid: str = Form(None), tmdbid: int = Form(None)):
     user_id = user.user_id
     user_label = user.user_label
@@ -411,11 +408,6 @@ async def upload(user: User = Depends(api_key_required), category: int = Form(..
 
     try:
         info = lt.torrent_info(torrent_download_path)
-
-        # TODO: remove this check in next couple client releases
-        if not torrent_name:
-            torrent_name = info.name()
-
         normalized_torrent_name = utils.normalize_search_string(torrent_name).lower()
         file_count = len(info.files())
         size = info.total_size()
