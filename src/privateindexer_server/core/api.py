@@ -350,7 +350,7 @@ async def torznab_api(user: User = Depends(api_key_required), t: str = Query(...
 
 
 @router.get("/grab")
-async def grab(user: User = Depends(api_key_required), hash_v1: str = Query(None), hash_v2: str = Query(None)):
+async def grab(user: User = Depends(api_key_required), hash_v1: str = Query(None), hash_v2: str = Query(None), nograb: bool = Query(False)):
     if not hash_v1 and not hash_v2:
         raise HTTPException(status_code=422, detail="Specify one of either hash_v1 or hash_v2")
 
@@ -382,9 +382,11 @@ async def grab(user: User = Depends(api_key_required), hash_v1: str = Query(None
         log.error(f"[GRAB] Failed to add tracker to torrent with hash '{torrent["hash_v2"]}: {e}")
         raise HTTPException(status_code=500, detail="Internal server error")
 
-    await mysql.execute("UPDATE torrents SET grabs = grabs + 1 WHERE id=%s", (torrent["id"],))
+    # only increment the grab counter and log it if query param was not set
+    if not nograb:
+        await mysql.execute("UPDATE torrents SET grabs = grabs + 1 WHERE id=%s", (torrent["id"],))
 
-    log.info(f"[GRAB] User '{user.user_label}' grabbed torrent by hash '{torrent["hash_v1"] if hash_v1 else torrent["hash_v2"]}'")
+        log.info(f"[GRAB] User '{user.user_label}' grabbed torrent by hash '{torrent["hash_v1"] if hash_v1 else torrent["hash_v2"]}'")
 
     return Response(content=bencoded, media_type="application/x-bittorrent", headers={"Content-Disposition": f'attachment; filename="{torrent_filename}"'})
 
