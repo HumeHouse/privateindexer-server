@@ -149,17 +149,16 @@ async def get_user_stats(user: User = Depends(api_key_required)):
     else:
         server_ratio = 0.0
 
-    # TODO: remove deprecated key `peers_on_user_torrents`
     user_stats = {"user": user.user_label, "torrents_added_total": torrents_added_total, "currently_seeding": currently_seeding, "currently_leeching": currently_leeching,
-                  "peers_on_user_torrents": 0, "grabs_total": grabs_total, "total_download": total_downloaded, "total_upload": total_uploaded,
-                  "server_ratio": server_ratio}
+                  "grabs_total": grabs_total, "total_download": total_downloaded, "total_upload": total_uploaded, "server_ratio": server_ratio}
 
     return JSONResponse(user_stats)
 
 
 @router.get("/api")
 async def torznab_api(user: User = Depends(api_key_required), t: str = Query(...), q: str = Query(""), cat: str = Query(None), season: int = Query(None),
-                      ep: int = Query(None), imdbid: str = Query(None), tmdbid: int = Query(None), limit: int = Query(100), offset: int = Query(0)):
+                      ep: int = Query(None), imdbid: str = Query(None), tmdbid: int = Query(None), tvdbid: int = Query(None),
+                      limit: int = Query(100), offset: int = Query(0)):
     if t == "caps":
         log.debug(f"[TORZNAB] User '{user.user_label}' sent capability request")
         xml = f"""<?xml version="1.0" encoding="UTF-8"?>
@@ -171,7 +170,7 @@ async def torznab_api(user: User = Depends(api_key_required), t: str = Query(...
             </categories>
             <searching>
                 <search available="yes" supportedParams="q"/>
-                <tv-search available="yes" supportedParams="q,season,ep,imdbid,tmdbid"/>
+                <tv-search available="yes" supportedParams="q,season,ep,imdbid,tmdbid,tvdbid"/>
                 <movie-search available="yes" supportedParams="q,imdbid,tmdbid"/>
                 <music-search available="no"/>
                 <audio-search available="no"/>
@@ -220,6 +219,7 @@ async def torznab_api(user: User = Depends(api_key_required), t: str = Query(...
                       <torznab:attr name="infohash" value="{t_entry['hash_v2']}"/>
                       {f"<torznab:attr name=\"imdbid\" value=\"{t_entry["imdbid"]}\"/>" if t_entry.get("imdbid") else ""}
                       {f"<torznab:attr name=\"tmdbid\" value=\"{t_entry["tmdbid"]}\"/>" if t_entry.get("tmdbid") else ""}
+                      {f"<torznab:attr name=\"tvdbid\" value=\"{t_entry["tvdbid"]}\"/>" if t_entry.get("tvdbid") else ""}
                       {f"<torznab:attr name=\"season\" value=\"{t_entry["season"]}\"/>" if t_entry.get("season") else ""}
                       {f"<torznab:attr name=\"episode\" value=\"{t_entry["episode"]}\"/>" if t_entry.get("episode") else ""}
                       </item>
@@ -273,6 +273,10 @@ async def torznab_api(user: User = Depends(api_key_required), t: str = Query(...
             where_clauses.append("t.tmdbid = %s")
             params.append(tmdbid)
 
+        if tvdbid is not None:
+            where_clauses.append("t.tvdbid = %s")
+            params.append(tvdbid)
+
         where_sql = " AND ".join(where_clauses) if where_clauses else "1=1"
 
         query = f"""
@@ -298,7 +302,7 @@ async def torznab_api(user: User = Depends(api_key_required), t: str = Query(...
 
         delta = datetime.datetime.now() - before
         query_duration = f"{round(delta.total_seconds() * 1000)} ms"
-        search_params = {"cat": cat, "season": season, "ep": ep, "imdbid": imdbid, "tmdbid": tmdbid, }
+        search_params = {"cat": cat, "season": season, "ep": ep, "imdbid": imdbid, "tmdbid": tmdbid, "tvdbid": tvdbid, }
         search_params = ",".join(f"{k}={v}" for k, v in search_params.items() if v is not None)
         log.info(f"[TORZNAB] User '{user.user_label}' searched '{q}' with params {search_params} ({query_duration}): "
                  f"returned {len(results)} results, found {total_matches} total")
@@ -327,6 +331,7 @@ async def torznab_api(user: User = Depends(api_key_required), t: str = Query(...
               <torznab:attr name="infohash" value="{t_entry['hash_v2']}"/>
               {f"<torznab:attr name=\"imdbid\" value=\"{t_entry["imdbid"]}\"/>" if t_entry.get("imdbid") else ""}
               {f"<torznab:attr name=\"tmdbid\" value=\"{t_entry["tmdbid"]}\"/>" if t_entry.get("tmdbid") else ""}
+              {f"<torznab:attr name=\"tvdbid\" value=\"{t_entry["tvdbid"]}\"/>" if t_entry.get("tvdbid") else ""}
               {f"<torznab:attr name=\"season\" value=\"{t_entry["season"]}\"/>" if t_entry.get("season") else ""}
               {f"<torznab:attr name=\"episode\" value=\"{t_entry["episode"]}\"/>" if t_entry.get("episode") else ""}
             </item>
@@ -392,8 +397,7 @@ async def grab(user: User = Depends(api_key_required), hash_v1: str = Query(None
 
 
 @router.post("/upload")
-# TODO: require torrent_name in next couple client releases
-async def upload(user: User = Depends(api_key_required), category: int = Form(...), torrent_file: UploadFile = File(...), torrent_name: str = Form(None),
+async def upload(user: User = Depends(api_key_required), category: int = Form(...), torrent_file: UploadFile = File(...), torrent_name: str = Form(...),
                  imdbid: str = Form(None), tmdbid: int = Form(None)):
     user_id = user.user_id
     user_label = user.user_label
@@ -411,11 +415,6 @@ async def upload(user: User = Depends(api_key_required), category: int = Form(..
 
     try:
         info = lt.torrent_info(torrent_download_path)
-
-        # TODO: remove this check in next couple client releases
-        if not torrent_name:
-            torrent_name = info.name()
-
         normalized_torrent_name = utils.normalize_search_string(torrent_name).lower()
         file_count = len(info.files())
         size = info.total_size()
