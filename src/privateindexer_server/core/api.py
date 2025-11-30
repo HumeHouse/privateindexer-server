@@ -398,7 +398,7 @@ async def grab(user: User = Depends(api_key_required), hash_v1: str = Query(None
 
 @router.post("/upload")
 async def upload(user: User = Depends(api_key_required), category: int = Form(...), torrent_file: UploadFile = File(...), torrent_name: str = Form(...),
-                 imdbid: str = Form(None), tmdbid: int = Form(None)):
+                 imdbid: str = Form(None), tmdbid: int = Form(None), tvdbid: int = Form(None)):
     user_id = user.user_id
     user_label = user.user_label
 
@@ -420,6 +420,7 @@ async def upload(user: User = Depends(api_key_required), category: int = Form(..
         size = info.total_size()
         hash_v1, hash_v2 = utils.get_torrent_hashes(torrent_download_path)
 
+        season_match, episode_match = utils.extract_season_episode(torrent_name)
     except:
         os.unlink(torrent_download_path)
         log.error(f"[UPLOAD] Failed to process torrent file sent by '{user_label}': '{torrent_file.filename}'")
@@ -428,8 +429,9 @@ async def upload(user: User = Depends(api_key_required), category: int = Form(..
     existing = await mysql.fetch_one("SELECT id, name, added_by_user_id FROM torrents WHERE hash_v1=%s OR hash_v2=%s", (hash_v1, hash_v2))
     if existing:
         if existing["added_by_user_id"] == user_id:
-            await mysql.execute("UPDATE torrents SET name = %s, normalized_name = %s, last_seen = NOW() WHERE id = %s",
-                                (torrent_name, normalized_torrent_name, existing["id"]))
+            await mysql.execute(
+                "UPDATE torrents SET name = %s, normalized_name = %s, season = %s, episode = %s, imdbid = %s, tmdbid = %s, tvdbid = %s, last_seen = NOW() WHERE id = %s",
+                (torrent_name, normalized_torrent_name, season_match, episode_match, imdbid, tmdbid, tvdbid, existing["id"]))
             log.info(f"[UPLOAD] User '{user_label}' re-uploaded torrent, renamed to '{torrent_name}'")
         else:
             log.debug(f"[UPLOAD] User '{user_label}' uploaded duplicate torrent: '{torrent_name}'")
@@ -442,14 +444,13 @@ async def upload(user: User = Depends(api_key_required), category: int = Form(..
     if os.path.exists(torrent_download_path):
         os.unlink(torrent_download_path)
 
-    season_match, episode_match = utils.extract_season_episode(torrent_name)
-
     await mysql.execute("""
-                        INSERT INTO torrents (name, normalized_name, season, episode, imdbid, tmdbid, torrent_path, size, category, hash_v1, hash_v2, files, added_on,
-                                              added_by_user_id, last_seen)
-                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, NOW(), %s, NOW())
-                        """, (torrent_name, normalized_torrent_name, season_match, episode_match, imdbid, tmdbid, torrent_save_path, size, category, hash_v1, hash_v2,
-                              file_count, user_id))
+                        INSERT INTO torrents (name, normalized_name, season, episode, imdbid, tmdbid, tvdbid, torrent_path, size, category, hash_v1, hash_v2, files, 
+                                              added_on, added_by_user_id, last_seen)
+                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, NOW(), %s, NOW())
+                        """,
+                        (torrent_name, normalized_torrent_name, season_match, episode_match, imdbid, tmdbid, tvdbid, torrent_save_path, size, category,
+                         hash_v1, hash_v2, file_count, user_id))
 
     log.info(f"[UPLOAD] User '{user_label}' uploaded torrent '{torrent_name}'")
 
