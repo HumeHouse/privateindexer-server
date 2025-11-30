@@ -237,7 +237,7 @@ async def torznab_api(user: User = Depends(api_key_required), t: str = Query(...
             delta = datetime.datetime.now() - before
             query_duration = f"{round(delta.total_seconds() * 1000)} ms"
 
-            log.info(f"[TORZNAB] User '{user.user_label}' performed RSS feed query in category {cat} ({query_duration}): returned {len(results)} results")
+            log.debug(f"[TORZNAB] User '{user.user_label}' performed RSS feed query in category {cat} ({query_duration}): returned {len(results)} results")
 
             return Response(content=xml, media_type="application/xml")
 
