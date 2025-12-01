@@ -161,7 +161,7 @@ async def torznab_api(user: User = Depends(api_key_required), t: str = Query(...
         </caps>"""
         return Response(content=xml, media_type="application/xml")
 
-    elif t in ["search", "tvsearch", "moviesearch"]:
+    elif t in ["search", "tvsearch", "movie"]:
         limit = min(int(limit), 1000)
         before = datetime.datetime.now()
 
@@ -243,7 +243,7 @@ async def torznab_api(user: User = Depends(api_key_required), t: str = Query(...
                     params.append(int(ep))
                 else:
                     where_clauses.append("t.episode IS NULL")
-        elif t == "moviesearch":
+        elif t == "movie":
             where_clauses.append("t.season IS NULL")
             where_clauses.append("t.episode IS NULL")
 
