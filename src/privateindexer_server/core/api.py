@@ -161,7 +161,7 @@ async def torznab_api(user: User = Depends(api_key_required), t: str = Query(...
         </caps>"""
         return Response(content=xml, media_type="application/xml")
 
-    elif t in ["search", "tvsearch", "moviesearch"]:
+    elif t in ["search", "tvsearch", "movie"]:
         limit = min(int(limit), 1000)
         before = datetime.datetime.now()
 
@@ -243,7 +243,7 @@ async def torznab_api(user: User = Depends(api_key_required), t: str = Query(...
                     params.append(int(ep))
                 else:
                     where_clauses.append("t.episode IS NULL")
-        elif t == "moviesearch":
+        elif t == "movie":
             where_clauses.append("t.season IS NULL")
             where_clauses.append("t.episode IS NULL")
 
@@ -293,7 +293,7 @@ async def torznab_api(user: User = Depends(api_key_required), t: str = Query(...
         query_duration = f"{round(delta.total_seconds() * 1000)} ms"
         search_params = {"cat": cat, "season": season, "ep": ep, "imdbid": imdbid, "tmdbid": tmdbid, "tvdbid": tvdbid, }
         search_params = ",".join(f"{k}={v}" for k, v in search_params.items() if v is not None)
-        log.info(f"[TORZNAB] User '{user.user_label}' searched '{q}' with params {search_params} ({query_duration}): "
+        log.info(f"[TORZNAB] User '{user.user_label}' searched{f" '{q}'" if q else ""} with params {search_params} ({query_duration}): "
                  f"returned {len(results)} results, found {total_matches} total")
 
         items = []
@@ -340,6 +340,7 @@ async def torznab_api(user: User = Depends(api_key_required), t: str = Query(...
         return Response(content=xml, media_type="application/xml")
 
     else:
+        log.warning(f"[TORZNAB] User '{user.user_label}' attemped an invalid search type: {t}")
         raise HTTPException(status_code=400, detail="Unsupported request type")
 
 
@@ -449,40 +450,38 @@ async def upload(user: User = Depends(api_key_required), category: int = Form(..
 @router.post("/sync")
 async def sync(user: User = Depends(api_key_required), request: Request = None):
     torrents: list[dict[str, int | str]] = await request.json()
-    hash_v1_list = [t["hash_v1"].lower() for t in torrents if t["hash_v1"]]
-    hash_v2_list = [t["hash_v2"].lower() for t in torrents if t["hash_v2"]]
 
-    params = []
-    where_clauses = []
+    client_hashes = {t["hash_v1"].lower() for t in torrents if t.get("hash_v1")} | {t["hash_v2"].lower() for t in torrents if t.get("hash_v2")}
 
-    if hash_v1_list:
-        placeholders_v1 = ", ".join(["%s"] * len(hash_v1_list))
-        where_clauses.append(f"hash_v1 IN ({placeholders_v1})")
-        params.extend(hash_v1_list)
+    if not client_hashes:
+        return JSONResponse({"found": [], "missing": torrents})
 
-    if hash_v2_list:
-        placeholders_v2 = ", ".join(["%s"] * len(hash_v2_list))
-        where_clauses.append(f"hash_v2 IN ({placeholders_v2})")
-        params.extend(hash_v2_list)
+    client_hashes_list = list(client_hashes)
 
-    existing_hashes = set()
-    if where_clauses:
-        query = f"""
-            SELECT hash_v1, hash_v2
+    placeholders = ", ".join(["%s"] * len(client_hashes_list))
+    query = f"""
+            SELECT LOWER(hash_v1) AS h
             FROM torrents
-            WHERE {" OR ".join(where_clauses)}
+            WHERE hash_v1 IN ({placeholders})
+
+            UNION DISTINCT
+
+            SELECT LOWER(hash_v2) AS h
+            FROM torrents
+            WHERE hash_v2 IN ({placeholders})
         """
-        existing = await mysql.fetch_all(query, tuple(params))
-        for row in existing:
-            if row["hash_v1"]:
-                existing_hashes.add(row["hash_v1"].lower())
-            if row["hash_v2"]:
-                existing_hashes.add(row["hash_v2"].lower())
+
+    params = client_hashes_list + client_hashes_list
+
+    rows = await mysql.fetch_all(query, tuple(params))
+    existing_hashes = {row["h"] for row in rows}
 
     found = []
     missing = []
     for t in torrents:
-        if t["hash_v1"] in existing_hashes or t["hash_v2"] in existing_hashes:
+        hash_v1 = t.get("hash_v1", "").lower()
+        hash_v2 = t.get("hash_v2", "").lower()
+        if hash_v1 in existing_hashes or hash_v2 in existing_hashes:
             found.append(t)
         else:
             missing.append(t)
