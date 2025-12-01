@@ -11,6 +11,8 @@ ANNOUNCE_TRACKER_URL = "https://tracker.humehouse.com/announce"
 PEER_TIMEOUT_INTERVAL = 60 * int(os.getenv("PEER_TIMEOUT_INTERVAL", 1))
 PEER_TIMEOUT = int(os.getenv("PEER_TIMEOUT", 1800))
 
+STATS_UPDATE_INTERVAL = int(os.getenv("STATS_UPDATE_INTERVAL", 30))
+
 HIGH_LATECY_THRESHOLD = int(os.getenv("HIGH_LATECY_THRESHOLD", 250))
 
 MAX_THREADS = int(os.getenv("MAX_THREADS", 48))

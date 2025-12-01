@@ -5,7 +5,7 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request, Response
 
-from privateindexer_server.core import mysql, api, database_check, stale_check, redis, utils, peer_timeout
+from privateindexer_server.core import mysql, api, database_check, stale_check, redis, utils, peer_timeout, stats_update
 from privateindexer_server.core.config import TORRENTS_DIR, HIGH_LATECY_THRESHOLD, APP_VERSION
 from privateindexer_server.core.logger import log
 
@@ -32,6 +32,7 @@ async def lifespan(_: FastAPI):
         asyncio.create_task(database_check.periodic_database_check_task()),
         asyncio.create_task(stale_check.periodic_stale_check_task()),
         asyncio.create_task(peer_timeout.periodic_peer_timeout_task()),
+        asyncio.create_task(stats_update.periodic_stats_update_task()),
     ]
 
     log.info("[APP] API server started on 0.0.0.0:80")
