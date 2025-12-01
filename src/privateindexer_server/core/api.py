@@ -1,5 +1,6 @@
 import datetime
 import os
+import re
 import shutil
 import socket
 import tempfile
@@ -415,6 +416,9 @@ async def upload(user: User = Depends(api_key_required), category: int = Form(..
         os.unlink(torrent_download_path)
         log.error(f"[UPLOAD] Failed to process torrent file sent by '{user_label}': '{torrent_file.filename}'")
         raise HTTPException(status_code=400, detail="Invalid torrent file")
+
+    if imdbid:
+        imdbid = int(re.sub(r"\D", "", imdbid))
 
     existing = await mysql.fetch_one("SELECT id, name, added_by_user_id FROM torrents WHERE hash_v1=%s OR hash_v2=%s", (hash_v1, hash_v2))
     if existing:
