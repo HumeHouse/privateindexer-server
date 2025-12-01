@@ -157,8 +157,8 @@ async def get_user_stats(user: User = Depends(api_key_required)):
 
 @router.get("/api")
 async def torznab_api(user: User = Depends(api_key_required), t: str = Query(...), q: str = Query(""), cat: str = Query(None), season: int = Query(None),
-                      ep: int = Query(None), imdbid: str = Query(None), tmdbid: int = Query(None), tvdbid: int = Query(None),
-                      limit: int = Query(100), offset: int = Query(0)):
+                      ep: int = Query(None), imdbid: str = Query(None), tmdbid: int = Query(None), tvdbid: int = Query(None), limit: int = Query(100),
+                      offset: int = Query(0)):
     if t == "caps":
         log.debug(f"[TORZNAB] User '{user.user_label}' sent capability request")
         xml = f"""<?xml version="1.0" encoding="UTF-8"?>
@@ -452,12 +452,12 @@ async def upload(user: User = Depends(api_key_required), category: int = Form(..
         os.unlink(torrent_download_path)
 
     await mysql.execute("""
-                        INSERT INTO torrents (name, normalized_name, season, episode, imdbid, tmdbid, tvdbid, torrent_path, size, category, hash_v1, hash_v2, files, 
+                        INSERT INTO torrents (name, normalized_name, season, episode, imdbid, tmdbid, tvdbid, torrent_path, size, category, hash_v1, hash_v2, files,
                                               added_on, added_by_user_id, last_seen)
                         VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, NOW(), %s, NOW())
                         """,
-                        (torrent_name, normalized_torrent_name, season_match, episode_match, imdbid, tmdbid, tvdbid, torrent_save_path, size, category,
-                         hash_v1, hash_v2, file_count, user_id))
+                        (torrent_name, normalized_torrent_name, season_match, episode_match, imdbid, tmdbid, tvdbid, torrent_save_path, size, category, hash_v1, hash_v2,
+                         file_count, user_id))
 
     log.info(f"[UPLOAD] User '{user_label}' uploaded torrent '{torrent_name}'")
 
