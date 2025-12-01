@@ -115,50 +115,32 @@ async def get_user_stats(user: User = Depends(api_key_required)):
 
     user_id = user.user_id
 
-    stats_query = """
-                  SELECT (SELECT COUNT(*) FROM torrents WHERE added_by_user_id = %s)   AS torrents_added_total, \
-                         (SELECT SUM(grabs) FROM torrents WHERE added_by_user_id = %s) AS grabs_total, \
-                         (SELECT downloaded FROM users WHERE id = %s)                  AS downloaded, \
-                         (SELECT uploaded FROM users WHERE id = %s)                    AS uploaded \
-                  """
-    stats = await mysql.fetch_one(stats_query, (user_id, user_id, user_id, user_id))
+    stats_query = "SELECT torrents_uploaded, grabs, downloaded, uploaded, seeding, leeching FROM users WHERE id = %s"
+    stats = await mysql.fetch_one(stats_query, (user_id,))
 
-    torrents_added_total = int(stats["torrents_added_total"] or 0)
-    grabs_total = int(stats["grabs_total"] or 0)
-    total_downloaded = stats["downloaded"] or 0
-    total_uploaded = stats["uploaded"] or 0
+    torrents_uploaded = int(stats["torrents_uploaded"] or 0)
+    grabs = int(stats["grabs"] or 0)
+    downloaded = stats["downloaded"] or 0
+    uploaded = stats["uploaded"] or 0
+    seeding = int(stats["seeding"] or 0)
+    leeching = int(stats["leeching"] or 0)
 
-    seed_leech_query = """
-                       SELECT SUM(is_seed) AS seeding, SUM(is_leech) AS leeching
-                       FROM (SELECT p.torrent_id, \
-                                    MAX(IF(p.left_bytes = 0, 1, 0)) AS is_seed, \
-                                    MAX(IF(p.left_bytes > 0, 1, 0)) AS is_leech \
-                             FROM peers p \
-                             WHERE p.user_id = %s \
-                               AND p.last_seen > NOW() - INTERVAL %s SECOND \
-                             GROUP BY p.torrent_id) AS t \
-                       """
-    seed_leech = await mysql.fetch_one(seed_leech_query, (user_id, PEER_TIMEOUT))
-    currently_seeding = int(seed_leech["seeding"] or 0)
-    currently_leeching = int(seed_leech["leeching"] or 0)
-
-    if total_downloaded > 0:
-        server_ratio = total_uploaded / total_downloaded
-    elif total_uploaded > 0:
+    if downloaded > 0:
+        server_ratio = uploaded / downloaded
+    elif uploaded > 0:
         server_ratio = 8640000
     else:
         server_ratio = 0.0
 
-    user_stats = {"user": user.user_label, "torrents_added_total": torrents_added_total, "currently_seeding": currently_seeding, "currently_leeching": currently_leeching,
-                  "grabs_total": grabs_total, "total_download": total_downloaded, "total_upload": total_uploaded, "server_ratio": server_ratio}
-
-    return JSONResponse(user_stats)
+    return JSONResponse(
+        {"user": user.user_label, "torrents_added_total": torrents_uploaded, "currently_seeding": seeding, "currently_leeching": leeching, "grabs_total": grabs,
+         "total_download": downloaded, "total_upload": uploaded, "server_ratio": server_ratio, })
 
 
 @router.get("/api")
 async def torznab_api(user: User = Depends(api_key_required), t: str = Query(...), q: str = Query(""), cat: str = Query(None), season: int = Query(None),
-                      ep: int = Query(None), imdbid: str = Query(None), tmdbid: int = Query(None), tvdbid: int = Query(None),
-                      limit: int = Query(100), offset: int = Query(0)):
+                      ep: int = Query(None), imdbid: str = Query(None), tmdbid: int = Query(None), tvdbid: int = Query(None), limit: int = Query(100),
+                      offset: int = Query(0)):
     if t == "caps":
         log.debug(f"[TORZNAB] User '{user.user_label}' sent capability request")
         xml = f"""<?xml version="1.0" encoding="UTF-8"?>
@@ -452,12 +434,12 @@ async def upload(user: User = Depends(api_key_required), category: int = Form(..
         os.unlink(torrent_download_path)
 
     await mysql.execute("""
-                        INSERT INTO torrents (name, normalized_name, season, episode, imdbid, tmdbid, tvdbid, torrent_path, size, category, hash_v1, hash_v2, files, 
+                        INSERT INTO torrents (name, normalized_name, season, episode, imdbid, tmdbid, tvdbid, torrent_path, size, category, hash_v1, hash_v2, files,
                                               added_on, added_by_user_id, last_seen)
                         VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, NOW(), %s, NOW())
                         """,
-                        (torrent_name, normalized_torrent_name, season_match, episode_match, imdbid, tmdbid, tvdbid, torrent_save_path, size, category,
-                         hash_v1, hash_v2, file_count, user_id))
+                        (torrent_name, normalized_torrent_name, season_match, episode_match, imdbid, tmdbid, tvdbid, torrent_save_path, size, category, hash_v1, hash_v2,
+                         file_count, user_id))
 
     log.info(f"[UPLOAD] User '{user_label}' uploaded torrent '{torrent_name}'")
 
