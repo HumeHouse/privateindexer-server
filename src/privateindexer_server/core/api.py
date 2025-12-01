@@ -293,7 +293,7 @@ async def torznab_api(user: User = Depends(api_key_required), t: str = Query(...
         query_duration = f"{round(delta.total_seconds() * 1000)} ms"
         search_params = {"cat": cat, "season": season, "ep": ep, "imdbid": imdbid, "tmdbid": tmdbid, "tvdbid": tvdbid, }
         search_params = ",".join(f"{k}={v}" for k, v in search_params.items() if v is not None)
-        log.info(f"[TORZNAB] User '{user.user_label}' searched '{q}' with params {search_params} ({query_duration}): "
+        log.info(f"[TORZNAB] User '{user.user_label}' searched{f" '{q}'" if q else ""} with params {search_params} ({query_duration}): "
                  f"returned {len(results)} results, found {total_matches} total")
 
         items = []
@@ -340,6 +340,7 @@ async def torznab_api(user: User = Depends(api_key_required), t: str = Query(...
         return Response(content=xml, media_type="application/xml")
 
     else:
+        log.warning(f"[TORZNAB] User '{user.user_label}' attemped an invalid search type: {t}")
         raise HTTPException(status_code=400, detail="Unsupported request type")
 
 
