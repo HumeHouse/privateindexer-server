@@ -141,7 +141,7 @@ async def get_user_stats(user: User = Depends(api_key_required)):
 @router.get("/api")
 async def torznab_api(user: User = Depends(api_key_required), t: str = Query(...), q: str = Query(""), cat: str = Query(None), season: int = Query(None),
                       ep: int = Query(None), imdbid: int = Query(None), tmdbid: int = Query(None), tvdbid: int = Query(None), limit: int = Query(100),
-                      offset: int = Query(0)):
+                      offset: int = Query(0), include_my_uploads: bool = Query(False)):
     if t == "caps":
         log.debug(f"[TORZNAB] User '{user.user_label}' sent capability request")
         xml = f"""<?xml version="1.0" encoding="UTF-8"?>
@@ -169,8 +169,9 @@ async def torznab_api(user: User = Depends(api_key_required), t: str = Query(...
         where_clauses = []
         where_params = []
 
-        where_clauses.append(f"t.added_by_user_id != %s")
-        where_params.append(user.user_id)
+        if not include_my_uploads:
+            where_clauses.append(f"t.added_by_user_id != %s")
+            where_params.append(user.user_id)
 
         # if no query is specified in a regular search, assume an RSS query is being made
         if t == "search" and (not q or q.strip() == ""):
