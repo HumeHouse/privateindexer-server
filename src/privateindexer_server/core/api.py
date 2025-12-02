@@ -141,7 +141,7 @@ async def get_user_stats(user: User = Depends(api_key_required)):
 @router.get("/api")
 async def torznab_api(user: User = Depends(api_key_required), t: str = Query(...), q: str = Query(""), cat: str = Query(None), season: int = Query(None),
                       ep: int = Query(None), imdbid: int = Query(None), tmdbid: int = Query(None), tvdbid: int = Query(None), limit: int = Query(100),
-                      offset: int = Query(0)):
+                      offset: int = Query(0), include_my_uploads: bool = Query(False)):
     if t == "caps":
         log.debug(f"[TORZNAB] User '{user.user_label}' sent capability request")
         xml = f"""<?xml version="1.0" encoding="UTF-8"?>
@@ -167,21 +167,25 @@ async def torznab_api(user: User = Depends(api_key_required), t: str = Query(...
         before = datetime.datetime.now()
 
         where_clauses = []
-        params = []
+        where_params = []
+
+        if not include_my_uploads:
+            where_clauses.append(f"t.added_by_user_id != %s")
+            where_params.append(user.user_id)
 
         # if no query is specified in a regular search, assume an RSS query is being made
         if t == "search" and (not q or q.strip() == ""):
 
             if cat is not None:
                 cats = [int(c) for c in cat.split(",")]
-                where_clauses.append(f"category IN ({",".join(["%s"] * len(cats))})")
-                params.extend(cats)
+                where_clauses.append(f"t.category IN ({",".join(["%s"] * len(cats))})")
+                where_params.extend(cats)
 
             where_sql = " AND ".join(where_clauses) if where_clauses else "1=1"
 
             # perform a lightweight scan of just most recent torrents
-            rss_query = f"SELECT * FROM torrents WHERE {where_sql} ORDER BY added_on DESC LIMIT %s OFFSET %s"
-            query_params = tuple(params) + (int(limit), int(offset))
+            rss_query = f"SELECT * FROM torrents t WHERE {where_sql} ORDER BY added_on DESC LIMIT %s OFFSET %s"
+            query_params = tuple(where_params) + (int(limit), int(offset))
             results = await mysql.fetch_all(rss_query, query_params)
 
             items = []
@@ -227,21 +231,21 @@ async def torznab_api(user: User = Depends(api_key_required), t: str = Query(...
         if q is not None:
             normalized_q = f"%{utils.normalize_search_string(q).lower()}%"
             where_clauses.append("t.normalized_name LIKE %s")
-            params.append(normalized_q)
+            where_params.append(normalized_q)
 
         if cat is not None:
             cats = [int(c) for c in cat.split(",")]
             where_clauses.append(f"t.category IN ({",".join(["%s"] * len(cats))})")
-            params.extend(cats)
+            where_params.extend(cats)
 
         if t == "tvsearch":
             if season is not None:
                 where_clauses.append("t.season = %s")
-                params.append(int(season))
+                where_params.append(int(season))
 
                 if ep is not None:
                     where_clauses.append("t.episode = %s")
-                    params.append(int(ep))
+                    where_params.append(int(ep))
                 else:
                     where_clauses.append("t.episode IS NULL")
         elif t == "movie":
@@ -265,7 +269,7 @@ async def torznab_api(user: User = Depends(api_key_required), t: str = Query(...
 
         if or_clauses:
             where_clauses.append("(" + " OR ".join(or_clauses) + ")")
-            params.extend(or_params)
+            where_params.extend(or_params)
 
         where_sql = " AND ".join(where_clauses) if where_clauses else "1=1"
 
@@ -286,7 +290,7 @@ async def torznab_api(user: User = Depends(api_key_required), t: str = Query(...
             LIMIT %s OFFSET %s
         """
 
-        query_params = (int(PEER_TIMEOUT),) + tuple(params) + (int(limit), int(offset))
+        query_params = (int(PEER_TIMEOUT),) + tuple(where_params) + (int(limit), int(offset))
         results = await mysql.fetch_all(query, query_params)
         total_matches = results[0]["total_matches"] if results else 0
 
