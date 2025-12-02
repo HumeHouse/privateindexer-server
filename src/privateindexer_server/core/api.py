@@ -177,13 +177,13 @@ async def torznab_api(user: User = Depends(api_key_required), t: str = Query(...
 
             if cat is not None:
                 cats = [int(c) for c in cat.split(",")]
-                where_clauses.append(f"category IN ({",".join(["%s"] * len(cats))})")
+                where_clauses.append(f"t.category IN ({",".join(["%s"] * len(cats))})")
                 where_params.extend(cats)
 
             where_sql = " AND ".join(where_clauses) if where_clauses else "1=1"
 
             # perform a lightweight scan of just most recent torrents
-            rss_query = f"SELECT * FROM torrents WHERE {where_sql} ORDER BY added_on DESC LIMIT %s OFFSET %s"
+            rss_query = f"SELECT * FROM torrents t WHERE {where_sql} ORDER BY added_on DESC LIMIT %s OFFSET %s"
             query_params = tuple(where_params) + (int(limit), int(offset))
             results = await mysql.fetch_all(rss_query, query_params)
 
