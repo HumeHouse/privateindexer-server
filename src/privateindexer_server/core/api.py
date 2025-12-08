@@ -459,30 +459,19 @@ async def upload(user: User = Depends(api_key_required), category: int = Form(..
 async def sync(user: User = Depends(api_key_required), request: Request = None):
     torrents: list[dict[str, int | str]] = await request.json()
 
-    client_hashes = {t["hash_v1"].lower() for t in torrents if t.get("hash_v1")} | {t["hash_v2"].lower() for t in torrents if t.get("hash_v2")}
+    client_hashes = [t.get("hash_v1", "").lower() for t in torrents if t.get("hash_v1")] + [t.get("hash_v2", "").lower() for t in torrents if t.get("hash_v2")]
 
     if not client_hashes:
-        return JSONResponse({"found": [], "missing": torrents})
+        missing_ids = [torrent["id"] for torrent in torrents]
+        # TODO: remove deprecated "found" and "missing" keys in a future release
+        return JSONResponse({"found": [], "missing": torrents, "missing_ids": missing_ids})
 
-    client_hashes_list = list(client_hashes)
+    placeholders = ", ".join(["%s"] * len(client_hashes))
+    query = f"SELECT LOWER(hash_v1) AS h1, LOWER(hash_v2) AS h2 FROM torrents WHERE hash_v1 IN ({placeholders}) OR hash_v2 IN ({placeholders})"
+    params = client_hashes + client_hashes
+    rows = await mysql.fetch_all(query, params)
 
-    placeholders = ", ".join(["%s"] * len(client_hashes_list))
-    query = f"""
-            SELECT LOWER(hash_v1) AS h
-            FROM torrents
-            WHERE hash_v1 IN ({placeholders})
-
-            UNION DISTINCT
-
-            SELECT LOWER(hash_v2) AS h
-            FROM torrents
-            WHERE hash_v2 IN ({placeholders})
-        """
-
-    params = client_hashes_list + client_hashes_list
-
-    rows = await mysql.fetch_all(query, tuple(params))
-    existing_hashes = {row["h"] for row in rows}
+    existing_hashes = {h for row in rows for h in (row["h1"], row["h2"]) if h}
 
     found = []
     missing = []
@@ -494,6 +483,10 @@ async def sync(user: User = Depends(api_key_required), request: Request = None):
         else:
             missing.append(t)
 
-    log.debug(f"[SYNC] User '{user.user_label}' synced {len(found)} existing, {len(missing)} missing (attempted {len(torrents)})")
+    # TODO: this will replace the deprecated code above in a future version
+    missing_ids = [t["id"] for t in torrents if t.get("hash_v1", "").lower() not in existing_hashes and t.get("hash_v2", "").lower() not in existing_hashes]
 
-    return JSONResponse({"found": found, "missing": missing})
+    log.debug(f"[SYNC] User '{user.user_label}' synced {len(existing_hashes)} existing, {len(missing_ids)} missing (attempted {len(torrents)})")
+
+    # TODO: remove deprecated "found" and "missing" keys in a future release
+    return JSONResponse({"found": found, "missing": missing, "missing_ids": missing_ids})
