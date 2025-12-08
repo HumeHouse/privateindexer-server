@@ -463,8 +463,7 @@ async def sync(user: User = Depends(api_key_required), request: Request = None):
 
     if not client_hashes:
         missing_ids = [torrent["id"] for torrent in torrents]
-        # TODO: remove deprecated "found" and "missing" keys in a future release
-        return JSONResponse({"found": [], "missing": torrents, "missing_ids": missing_ids})
+        return JSONResponse({"missing_ids": missing_ids})
 
     placeholders = ", ".join(["%s"] * len(client_hashes))
     query = f"SELECT LOWER(hash_v1) AS h1, LOWER(hash_v2) AS h2 FROM torrents WHERE hash_v1 IN ({placeholders}) OR hash_v2 IN ({placeholders})"
@@ -473,20 +472,8 @@ async def sync(user: User = Depends(api_key_required), request: Request = None):
 
     existing_hashes = {h for row in rows for h in (row["h1"], row["h2"]) if h}
 
-    found = []
-    missing = []
-    for t in torrents:
-        hash_v1 = t.get("hash_v1", "").lower()
-        hash_v2 = t.get("hash_v2", "").lower()
-        if hash_v1 in existing_hashes or hash_v2 in existing_hashes:
-            found.append(t)
-        else:
-            missing.append(t)
-
-    # TODO: this will replace the deprecated code above in a future version
     missing_ids = [t["id"] for t in torrents if t.get("hash_v1", "").lower() not in existing_hashes and t.get("hash_v2", "").lower() not in existing_hashes]
 
     log.debug(f"[SYNC] User '{user.user_label}' synced {len(existing_hashes)} existing, {len(missing_ids)} missing (attempted {len(torrents)})")
 
-    # TODO: remove deprecated "found" and "missing" keys in a future release
-    return JSONResponse({"found": found, "missing": missing, "missing_ids": missing_ids})
+    return JSONResponse({"missing_ids": missing_ids})
