@@ -4,7 +4,7 @@ APP_VERSION = "1.4.5"
 
 TORRENTS_DIR = "/app/torrents"
 
-CATEGORIES = {"movies": {"id": 2000, "name": "Movies"}, "tv": {"id": 5000, "name": "TV"}}
+CATEGORIES = {"movies": {"id": 2000, "name": "Movies"}, "tv": {"id": 5000, "name": "TV"}, "audio": {"id": 3000, "name": "Audio"}}
 
 ANNOUNCE_TRACKER_URL = "https://tracker.humehouse.com/announce"
 
