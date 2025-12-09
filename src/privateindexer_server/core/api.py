@@ -230,7 +230,7 @@ async def torznab_api(user: User = Depends(api_key_required), t: str = Query(...
             return Response(content=xml, media_type="application/xml")
 
         if q is not None:
-            normalized_q = f"%{utils.normalize_search_string(q).lower()}%"
+            normalized_q = f"%{utils.normalize_search_string(q)}%"
             where_clauses.append("t.normalized_name LIKE %s")
             where_params.append(normalized_q)
 
@@ -428,7 +428,7 @@ async def upload(user: User = Depends(api_key_required), category: int = Form(..
 
     try:
         info = lt.torrent_info(torrent_download_path)
-        normalized_torrent_name = utils.normalize_search_string(torrent_name).lower()
+        normalized_torrent_name = utils.normalize_search_string(torrent_name)
         file_count = len(info.files())
         size = info.total_size()
         hash_v1, hash_v2 = utils.get_torrent_hashes(torrent_download_path)
