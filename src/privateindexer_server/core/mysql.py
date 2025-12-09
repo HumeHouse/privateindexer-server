@@ -67,6 +67,8 @@ TORRENTS_TABLE_SQL = """
                          `imdbid`           int                                     NULL,
                          `tmdbid`           int                                     NULL,
                          `tvdbid`           int                                     NULL,
+                         `artist`           text COLLATE utf8mb4_general_ci         NULL,
+                         `album`            text COLLATE utf8mb4_general_ci         NULL,
                          `torrent_path`     text COLLATE utf8mb4_general_ci,
                          `size`             bigint                                  NOT NULL,
                          `category`         int                                     NOT NULL,
