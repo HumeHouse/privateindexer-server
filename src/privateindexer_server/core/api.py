@@ -155,14 +155,13 @@ async def torznab_api(user: User = Depends(api_key_required), t: str = Query(...
                 <search available="yes" supportedParams="q"/>
                 <tv-search available="yes" supportedParams="q,season,ep,imdbid,tmdbid,tvdbid"/>
                 <movie-search available="yes" supportedParams="q,imdbid,tmdbid"/>
-                <music-search available="no"/>
-                <audio-search available="no"/>
+                <music-search available="yes" supportedParams="q,artist,album"/>
                 <book-search available="no"/>
             </searching>
         </caps>"""
         return Response(content=xml, media_type="application/xml")
 
-    elif t in ["search", "tvsearch", "movie"]:
+    elif t in ["search", "tvsearch", "movie", "music"]:
         limit = min(int(limit), 1000)
         before = datetime.datetime.now()
 
