@@ -1,10 +1,10 @@
 import os
 
-APP_VERSION = "1.4.5"
+APP_VERSION = "1.5.0"
 
 TORRENTS_DIR = "/app/torrents"
 
-CATEGORIES = {"movies": {"id": 2000, "name": "Movies"}, "tv": {"id": 5000, "name": "TV"}}
+CATEGORIES = {"movies": {"id": 2000, "name": "Movies"}, "tv": {"id": 5000, "name": "TV"}, "audio": {"id": 3000, "name": "Audio"}}
 
 ANNOUNCE_TRACKER_URL = "https://tracker.humehouse.com/announce"
 
@@ -17,9 +17,9 @@ HIGH_LATECY_THRESHOLD = int(os.getenv("HIGH_LATECY_THRESHOLD", 250))
 
 MAX_THREADS = int(os.getenv("MAX_THREADS", 48))
 
-DATABASE_CHECK_INTERVAL = 60 * int(os.getenv("DATABASE_CHECK_INTERVAL", 120))
+DATABASE_CHECK_INTERVAL = 60 * 60 * int(os.getenv("DATABASE_CHECK_INTERVAL", 12))
 
-STALE_CHECK_INTERVAL = 60 * 60 * int(os.getenv("STALE_CHECK_INTERVAL", 12))
+STALE_CHECK_INTERVAL = 60 * 60 * int(os.getenv("STALE_CHECK_INTERVAL", 6))
 STALE_THRESHOLD = 60 * 60 * 24 * int(os.getenv("STALE_THRESHOLD", 30))
 
 REDIS_HOST = os.getenv("REDIS_HOST")

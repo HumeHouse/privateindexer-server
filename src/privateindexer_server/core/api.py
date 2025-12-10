@@ -140,8 +140,8 @@ async def get_user_stats(user: User = Depends(api_key_required)):
 
 @router.get("/api")
 async def torznab_api(user: User = Depends(api_key_required), t: str = Query(...), q: str = Query(""), cat: str = Query(None), season: int = Query(None),
-                      ep: int = Query(None), imdbid: int = Query(None), tmdbid: int = Query(None), tvdbid: int = Query(None), limit: int = Query(100),
-                      offset: int = Query(0), include_my_uploads: bool = Query(False)):
+                      ep: int = Query(None), imdbid: int = Query(None), tmdbid: int = Query(None), tvdbid: int = Query(None), artist: str = Query(None),
+                      album: str = Query(None), limit: int = Query(100), offset: int = Query(0), include_my_uploads: bool = Query(False)):
     if t == "caps":
         log.debug(f"[TORZNAB] User '{user.user_label}' sent capability request")
         xml = f"""<?xml version="1.0" encoding="UTF-8"?>
@@ -155,14 +155,13 @@ async def torznab_api(user: User = Depends(api_key_required), t: str = Query(...
                 <search available="yes" supportedParams="q"/>
                 <tv-search available="yes" supportedParams="q,season,ep,imdbid,tmdbid,tvdbid"/>
                 <movie-search available="yes" supportedParams="q,imdbid,tmdbid"/>
-                <music-search available="no"/>
-                <audio-search available="no"/>
+                <music-search available="yes" supportedParams="q,artist,album"/>
                 <book-search available="no"/>
             </searching>
         </caps>"""
         return Response(content=xml, media_type="application/xml")
 
-    elif t in ["search", "tvsearch", "movie"]:
+    elif t in ["search", "tvsearch", "movie", "music"]:
         limit = min(int(limit), 1000)
         before = datetime.datetime.now()
 
@@ -209,6 +208,8 @@ async def torznab_api(user: User = Depends(api_key_required), t: str = Query(...
                       {f"<torznab:attr name=\"tvdbid\" value=\"{t_entry["tvdbid"]}\"/>" if t_entry.get("tvdbid") else ""}
                       {f"<torznab:attr name=\"season\" value=\"{t_entry["season"]}\"/>" if t_entry.get("season") else ""}
                       {f"<torznab:attr name=\"episode\" value=\"{t_entry["episode"]}\"/>" if t_entry.get("episode") else ""}
+                      {f"<torznab:attr name=\"artist\" value=\"{t_entry["artist"]}\"/>" if t_entry.get("artist") else ""}
+                      {f"<torznab:attr name=\"album\" value=\"{t_entry["album"]}\"/>" if t_entry.get("album") else ""}
                       </item>
                 """)
 
@@ -229,7 +230,7 @@ async def torznab_api(user: User = Depends(api_key_required), t: str = Query(...
             return Response(content=xml, media_type="application/xml")
 
         if q is not None:
-            normalized_q = f"%{utils.normalize_search_string(q).lower()}%"
+            normalized_q = f"%{utils.normalize_search_string(q)}%"
             where_clauses.append("t.normalized_name LIKE %s")
             where_params.append(normalized_q)
 
@@ -248,9 +249,24 @@ async def torznab_api(user: User = Depends(api_key_required), t: str = Query(...
                     where_params.append(int(ep))
                 else:
                     where_clauses.append("t.episode IS NULL")
+            where_clauses.append("t.artist IS NULL")
+            where_clauses.append("t.album IS NULL")
         elif t == "movie":
             where_clauses.append("t.season IS NULL")
             where_clauses.append("t.episode IS NULL")
+            where_clauses.append("t.artist IS NULL")
+            where_clauses.append("t.album IS NULL")
+        elif t == "music":
+            where_clauses.append("t.season IS NULL")
+            where_clauses.append("t.episode IS NULL")
+            if artist is not None:
+                normalized_artist = utils.normalize_search_string(artist)
+                where_clauses.append("t.artist = %s")
+                where_params.append(normalized_artist)
+            if album is not None:
+                normalized_album = utils.normalize_search_string(album)
+                where_clauses.append("t.album = %s")
+                where_params.append(normalized_album)
 
         or_clauses = []
         or_params = []
@@ -296,7 +312,7 @@ async def torznab_api(user: User = Depends(api_key_required), t: str = Query(...
 
         delta = datetime.datetime.now() - before
         query_duration = f"{round(delta.total_seconds() * 1000)} ms"
-        search_params = {"cat": cat, "season": season, "ep": ep, "imdbid": imdbid, "tmdbid": tmdbid, "tvdbid": tvdbid, }
+        search_params = {"cat": cat, "season": season, "ep": ep, "imdbid": imdbid, "tmdbid": tmdbid, "tvdbid": tvdbid, "artist": artist, "album": album}
         search_params = ",".join(f"{k}={v}" for k, v in search_params.items() if v is not None)
         log.info(f"[TORZNAB] User '{user.user_label}' searched{f" '{q}'" if q else ""} with params {search_params} ({query_duration}): "
                  f"returned {len(results)} results, found {total_matches} total")
@@ -328,6 +344,8 @@ async def torznab_api(user: User = Depends(api_key_required), t: str = Query(...
               {f"<torznab:attr name=\"tvdbid\" value=\"{t_entry["tvdbid"]}\"/>" if t_entry.get("tvdbid") else ""}
               {f"<torznab:attr name=\"season\" value=\"{t_entry["season"]}\"/>" if t_entry.get("season") else ""}
               {f"<torznab:attr name=\"episode\" value=\"{t_entry["episode"]}\"/>" if t_entry.get("episode") else ""}
+              {f"<torznab:attr name=\"artist\" value=\"{t_entry["artist"]}\"/>" if t_entry.get("artist") else ""}
+              {f"<torznab:attr name=\"album\" value=\"{t_entry["album"]}\"/>" if t_entry.get("album") else ""}
             </item>
             """
             items.append(item)
@@ -393,7 +411,7 @@ async def grab(user: User = Depends(api_key_required), hash_v1: str = Query(None
 
 @router.post("/upload")
 async def upload(user: User = Depends(api_key_required), category: int = Form(...), torrent_file: UploadFile = File(...), torrent_name: str = Form(...),
-                 imdbid: str = Form(None), tmdbid: int = Form(None), tvdbid: int = Form(None)):
+                 imdbid: str = Form(None), tmdbid: int = Form(None), tvdbid: int = Form(None), artist: str = Form(None), album: str = Form(None)):
     user_id = user.user_id
     user_label = user.user_label
 
@@ -410,7 +428,7 @@ async def upload(user: User = Depends(api_key_required), category: int = Form(..
 
     try:
         info = lt.torrent_info(torrent_download_path)
-        normalized_torrent_name = utils.normalize_search_string(torrent_name).lower()
+        normalized_torrent_name = utils.normalize_search_string(torrent_name)
         file_count = len(info.files())
         size = info.total_size()
         hash_v1, hash_v2 = utils.get_torrent_hashes(torrent_download_path)
@@ -424,12 +442,18 @@ async def upload(user: User = Depends(api_key_required), category: int = Form(..
     if imdbid:
         imdbid = int(re.sub(r"\D", "", imdbid))
 
+    if artist:
+        artist = utils.normalize_search_string(artist)
+
+    if album:
+        album = utils.normalize_search_string(album)
+
     existing = await mysql.fetch_one("SELECT id, name, added_by_user_id FROM torrents WHERE hash_v1=%s OR hash_v2=%s", (hash_v1, hash_v2))
     if existing:
         if existing["added_by_user_id"] == user_id:
             await mysql.execute(
-                "UPDATE torrents SET name = %s, normalized_name = %s, season = %s, episode = %s, imdbid = %s, tmdbid = %s, tvdbid = %s, last_seen = NOW() WHERE id = %s",
-                (torrent_name, normalized_torrent_name, season_match, episode_match, imdbid, tmdbid, tvdbid, existing["id"]))
+                "UPDATE torrents SET name = %s, normalized_name = %s, season = %s, episode = %s, imdbid = %s, tmdbid = %s, tvdbid = %s, artist = %s, album = %s, last_seen = NOW() WHERE id = %s",
+                (torrent_name, normalized_torrent_name, season_match, episode_match, imdbid, tmdbid, tvdbid, artist, album, existing["id"]))
             log.info(f"[UPLOAD] User '{user_label}' re-uploaded torrent, renamed to '{torrent_name}'")
         else:
             log.debug(f"[UPLOAD] User '{user_label}' uploaded duplicate torrent: '{torrent_name}'")
@@ -443,12 +467,12 @@ async def upload(user: User = Depends(api_key_required), category: int = Form(..
         os.unlink(torrent_download_path)
 
     await mysql.execute("""
-                        INSERT INTO torrents (name, normalized_name, season, episode, imdbid, tmdbid, tvdbid, torrent_path, size, category, hash_v1, hash_v2, files,
+                        INSERT INTO torrents (name, normalized_name, season, episode, imdbid, tmdbid, tvdbid, artist, album, torrent_path, size, category, hash_v1, hash_v2, files,
                                               added_on, added_by_user_id, last_seen)
-                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, NOW(), %s, NOW())
+                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, NOW(), %s, NOW())
                         """,
-                        (torrent_name, normalized_torrent_name, season_match, episode_match, imdbid, tmdbid, tvdbid, torrent_save_path, size, category, hash_v1, hash_v2,
-                         file_count, user_id))
+                        (torrent_name, normalized_torrent_name, season_match, episode_match, imdbid, tmdbid, tvdbid, artist, album, torrent_save_path, size, category,
+                         hash_v1, hash_v2, file_count, user_id))
 
     log.info(f"[UPLOAD] User '{user_label}' uploaded torrent '{torrent_name}'")
 
@@ -463,8 +487,7 @@ async def sync(user: User = Depends(api_key_required), request: Request = None):
 
     if not client_hashes:
         missing_ids = [torrent["id"] for torrent in torrents]
-        # TODO: remove deprecated "found" and "missing" keys in a future release
-        return JSONResponse({"found": [], "missing": torrents, "missing_ids": missing_ids})
+        return JSONResponse({"missing_ids": missing_ids})
 
     placeholders = ", ".join(["%s"] * len(client_hashes))
     query = f"SELECT LOWER(hash_v1) AS h1, LOWER(hash_v2) AS h2 FROM torrents WHERE hash_v1 IN ({placeholders}) OR hash_v2 IN ({placeholders})"
@@ -473,20 +496,8 @@ async def sync(user: User = Depends(api_key_required), request: Request = None):
 
     existing_hashes = {h for row in rows for h in (row["h1"], row["h2"]) if h}
 
-    found = []
-    missing = []
-    for t in torrents:
-        hash_v1 = t.get("hash_v1", "").lower()
-        hash_v2 = t.get("hash_v2", "").lower()
-        if hash_v1 in existing_hashes or hash_v2 in existing_hashes:
-            found.append(t)
-        else:
-            missing.append(t)
-
-    # TODO: this will replace the deprecated code above in a future version
     missing_ids = [t["id"] for t in torrents if t.get("hash_v1", "").lower() not in existing_hashes and t.get("hash_v2", "").lower() not in existing_hashes]
 
     log.debug(f"[SYNC] User '{user.user_label}' synced {len(existing_hashes)} existing, {len(missing_ids)} missing (attempted {len(torrents)})")
 
-    # TODO: remove deprecated "found" and "missing" keys in a future release
-    return JSONResponse({"found": found, "missing": missing, "missing_ids": missing_ids})
+    return JSONResponse({"missing_ids": missing_ids})
