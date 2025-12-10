@@ -42,7 +42,7 @@ def build_torrent_path(torrent_name: str) -> str:
 
 
 def normalize_search_string(s: str) -> str:
-    return re.sub(r"[^a-z0-9]", "", s.lower())
+    return re.sub(r"[^a-z0-9]", "", s.lower().strip())
 
 
 def extract_bt_param(raw_qs: bytes, key: str) -> bytes:
