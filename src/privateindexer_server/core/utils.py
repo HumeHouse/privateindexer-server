@@ -11,7 +11,7 @@ from privateindexer_server.core.config import TORRENTS_DIR
 from privateindexer_server.core.logger import log
 
 SEASON_EPISODE_REGEX = re.compile(
-    r"S(?P<season>\d{1,2})(?:E(?P<episode>\d{1,3}))?|(?P<season_alt>\d{1,2})x(?P<episode_alt>\d{1,3})",
+    r"S(?P<season>\d{1,4})(?:E(?P<episode>\d{1,3}))?|(?P<season_alt>\d{1,4})x(?P<episode_alt>\d{1,3})",
     re.IGNORECASE,
 )
 
