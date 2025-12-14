@@ -4,8 +4,9 @@ import time
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request, Response
+from fastapi.staticfiles import StaticFiles
 
-from privateindexer_server.core import mysql, api, database_check, stale_check, redis, utils, peer_timeout, stats_update
+from privateindexer_server.core import mysql, api, database_check, stale_check, redis, utils, peer_timeout, stats_update, gui
 from privateindexer_server.core.config import TORRENTS_DIR, HIGH_LATECY_THRESHOLD, APP_VERSION
 from privateindexer_server.core.logger import log
 
@@ -53,7 +54,10 @@ async def lifespan(_: FastAPI):
 app = FastAPI(lifespan=lifespan, docs_url=None, redoc_url=None, openapi_url=None,
               title=f"PrivateIndexer Server", version=APP_VERSION)
 
+app.mount("/static", StaticFiles(directory="/app/src/static"), name="static")
+
 app.include_router(api.router)
+app.include_router(gui.router)
 
 
 @app.middleware("http")
