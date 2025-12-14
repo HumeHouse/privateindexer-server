@@ -474,8 +474,8 @@ async def upload(user: User = Depends(api_key_required), category: int = Form(..
         os.unlink(torrent_download_path)
 
     await mysql.execute("""
-                        INSERT INTO torrents (name, normalized_name, season, episode, imdbid, tmdbid, tvdbid, artist, album, torrent_path, size, category, hash_v1, hash_v2, files,
-                                              added_on, added_by_user_id, last_seen)
+                        INSERT INTO torrents (name, normalized_name, season, episode, imdbid, tmdbid, tvdbid, artist, album, torrent_path, size, category, hash_v1,
+                                              hash_v2, files, added_on, added_by_user_id, last_seen)
                         VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, NOW(), %s, NOW())
                         """,
                         (torrent_name, normalized_torrent_name, season_match, episode_match, imdbid, tmdbid, tvdbid, artist, album, torrent_save_path, size, category,
