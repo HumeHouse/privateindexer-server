@@ -89,8 +89,10 @@ async def get_stats(user: User = Depends(api_key_required)):
     return JSONResponse(analytics)
 
 
+# TODO: public_uploads should be a required query param in future release
 @router.get("/user")
-async def current_user(user: User = Depends(api_key_required), request: Request = None, v: str = Query(...), announce_ip: str = Query(None), port: int = Query(None)):
+async def current_user(user: User = Depends(api_key_required), request: Request = None, v: str = Query(...), announce_ip: str = Query(None), port: int = Query(None),
+                       public_uploads: bool = Query(None)):
     announce_ip = announce_ip or utils.get_client_ip(request)
     port = port or 6881
 
@@ -103,8 +105,13 @@ async def current_user(user: User = Depends(api_key_required), request: Request 
         log.warning(f"[USER] User '{user.user_label}' ({announce_ip}:{port} - UNREACHABLE) connected with PrivateIndexer client v{v}")
         pass
 
-    await mysql.execute("UPDATE users SET client_version = %s, last_ip = %s, last_seen=NOW(), reachable = %s WHERE id=%s",
-                        (v, f"{announce_ip}:{port}", reachable, user.user_id,))
+    # TODO: remove this logic in future release
+    if public_uploads is not None:
+        await mysql.execute("UPDATE users SET client_version = %s, last_ip = %s, last_seen=NOW(), reachable = %s, public_uploads = %s WHERE id = %s",
+                            (v, f"{announce_ip}:{port}", reachable, public_uploads, user.user_id))
+    else:
+        await mysql.execute("UPDATE users SET client_version = %s, last_ip = %s, last_seen=NOW(), reachable = %s WHERE id=%s",
+                            (v, f"{announce_ip}:{port}", reachable, user.user_id))
 
     user_data = {"user_label": user.user_label, "announce_ip": announce_ip, "is_reachable": reachable, }
     return JSONResponse(user_data)
@@ -172,6 +179,10 @@ async def torznab_api(user: User = Depends(api_key_required), t: str = Query(...
             where_clauses.append(f"t.added_by_user_id != %s")
             where_params.append(user.user_id)
 
+        users_query = f"SELECT id, label FROM users WHERE public_uploads = TRUE"
+        users_results = await mysql.fetch_all(users_query)
+        user_map = {user["id"]: user["label"] for user in users_results}
+
         # if no query is specified in a regular search, assume an RSS query is being made
         if t == "search" and (not q or q.strip() == ""):
 
@@ -190,37 +201,40 @@ async def torznab_api(user: User = Depends(api_key_required), t: str = Query(...
             items = []
             for t_entry in results:
                 torrent_url_with_key = f"https://indexer.humehouse.com/grab?hash_v2={t_entry['hash_v2']}&apikey={user.apikey}"
+                added_by_user_id = t_entry["added_by_user_id"]
                 items.append(f"""
                     <item>
-                      <title>{escape(t_entry["name"])}</title>
-                      <guid isPermaLink="false">humehouse-{t_entry['hash_v2']}</guid>
-                      <link>{escape(torrent_url_with_key)}</link>
-                      <enclosure url="{escape(torrent_url_with_key)}" length="{t_entry["size"]}" type="application/x-bittorrent"/>
-                      <size>{t_entry["size"]}</size>
-                      <pubDate>{t_entry["added_on"].strftime("%a, %d %b %Y %H:%M:%S GMT")}</pubDate>
-                      <category>{t_entry["category"]}</category>
-                      <torznab:attr name="category" value="{t_entry["category"]}" />
-                      <torznab:attr name="files" value="{t_entry['files']}"/>
-                      <torznab:attr name="grabs" value="{t_entry['grabs']}"/>
-                      <torznab:attr name="infohash" value="{t_entry['hash_v2']}"/>
-                      {f"<torznab:attr name=\"imdbid\" value=\"{t_entry["imdbid"]}\"/>" if t_entry.get("imdbid") else ""}
-                      {f"<torznab:attr name=\"tmdbid\" value=\"{t_entry["tmdbid"]}\"/>" if t_entry.get("tmdbid") else ""}
-                      {f"<torznab:attr name=\"tvdbid\" value=\"{t_entry["tvdbid"]}\"/>" if t_entry.get("tvdbid") else ""}
-                      {f"<torznab:attr name=\"season\" value=\"{t_entry["season"]}\"/>" if t_entry.get("season") else ""}
-                      {f"<torznab:attr name=\"episode\" value=\"{t_entry["episode"]}\"/>" if t_entry.get("episode") else ""}
-                      {f"<torznab:attr name=\"artist\" value=\"{t_entry["artist"]}\"/>" if t_entry.get("artist") else ""}
-                      {f"<torznab:attr name=\"album\" value=\"{t_entry["album"]}\"/>" if t_entry.get("album") else ""}
-                      </item>
+                        <title>{escape(t_entry["name"])}</title>
+                        <guid isPermaLink="false">humehouse-{t_entry['hash_v2']}</guid>
+                        <link>{escape(torrent_url_with_key)}</link>
+                        <enclosure url="{escape(torrent_url_with_key)}" length="{t_entry["size"]}" type="application/x-bittorrent"/>
+                        <size>{t_entry["size"]}</size>
+                        <pubDate>{t_entry["added_on"].strftime("%a, %d %b %Y %H:%M:%S GMT")}</pubDate>
+                        <category>{t_entry["category"]}</category>
+                        <torznab:attr name="category" value="{t_entry["category"]}" />
+                        <torznab:attr name="files" value="{t_entry['files']}"/>
+                        <torznab:attr name="grabs" value="{t_entry['grabs']}"/>
+                        <torznab:attr name="infohash" value="{t_entry['hash_v2']}"/>
+                        {f"<torznab:attr name=\"poster\" value=\"{user_map[added_by_user_id]}\"/>" if user_map.get(added_by_user_id) else ""}
+                        {f"<torznab:attr name=\"imdbid\" value=\"{t_entry["imdbid"]}\"/>" if t_entry.get("imdbid") else ""}
+                        {f"<torznab:attr name=\"tmdbid\" value=\"{t_entry["tmdbid"]}\"/>" if t_entry.get("tmdbid") else ""}
+                        {f"<torznab:attr name=\"tvdbid\" value=\"{t_entry["tvdbid"]}\"/>" if t_entry.get("tvdbid") else ""}
+                        {f"<torznab:attr name=\"season\" value=\"{t_entry["season"]}\"/>" if t_entry.get("season") else ""}
+                        {f"<torznab:attr name=\"episode\" value=\"{t_entry["episode"]}\"/>" if t_entry.get("episode") else ""}
+                        {f"<torznab:attr name=\"artist\" value=\"{t_entry["artist"]}\"/>" if t_entry.get("artist") else ""}
+                        {f"<torznab:attr name=\"album\" value=\"{t_entry["album"]}\"/>" if t_entry.get("album") else ""}
+                    </item>
                 """)
 
             xml = f"""<?xml version="1.0" encoding="UTF-8" ?>
-            <rss version="2.0" xmlns:torznab="http://torznab.com/schemas/2015/feed">
-              <channel>
-                <title>HumeHouse Private Indexer</title>
-                <description>For friends of David</description>
-                {"".join(items)}
-              </channel>
-            </rss>"""
+                <rss version="2.0" xmlns:torznab="http://torznab.com/schemas/2015/feed">
+                    <channel>
+                        <title>HumeHouse Private Indexer</title>
+                        <description>For friends of David</description>
+                        {"".join(items)}
+                    </channel>
+                </rss>
+            """
 
             delta = datetime.datetime.now() - before
             query_duration = f"{round(delta.total_seconds() * 1000)} ms"
@@ -323,43 +337,46 @@ async def torznab_api(user: User = Depends(api_key_required), t: str = Query(...
             leechers = t_entry["leechers"]
 
             torrent_url_with_key = f"https://indexer.humehouse.com/grab?hash_v2={t_entry['hash_v2']}&apikey={user.apikey}"
+            added_by_user_id = t_entry["added_by_user_id"]
             item = f"""
             <item>
-              <title>{escape(t_entry["name"])}</title>
-              <guid isPermaLink="false">humehouse-{t_entry['hash_v2']}</guid>
-              <link>{escape(torrent_url_with_key)}</link>
-              <enclosure url="{escape(torrent_url_with_key)}" length="{t_entry["size"]}" type="application/x-bittorrent"/>
-              <size>{t_entry["size"]}</size>
-              <pubDate>{t_entry["added_on"].strftime("%a, %d %b %Y %H:%M:%S GMT")}</pubDate>
-              <category>{t_entry["category"]}</category>
-              <torznab:attr name="category" value="{t_entry["category"]}" />
-              <torznab:attr name="files" value="{t_entry['files']}"/>
-              <torznab:attr name="seeders" value="{seeders}"/>
-              <torznab:attr name="leechers" value="{leechers}"/>
-              <torznab:attr name="peers" value="{seeders + leechers}"/>
-              <torznab:attr name="grabs" value="{t_entry['grabs']}"/>
-              <torznab:attr name="infohash" value="{t_entry['hash_v2']}"/>
-              {f"<torznab:attr name=\"imdbid\" value=\"{t_entry["imdbid"]}\"/>" if t_entry.get("imdbid") else ""}
-              {f"<torznab:attr name=\"tmdbid\" value=\"{t_entry["tmdbid"]}\"/>" if t_entry.get("tmdbid") else ""}
-              {f"<torznab:attr name=\"tvdbid\" value=\"{t_entry["tvdbid"]}\"/>" if t_entry.get("tvdbid") else ""}
-              {f"<torznab:attr name=\"season\" value=\"{t_entry["season"]}\"/>" if t_entry.get("season") else ""}
-              {f"<torznab:attr name=\"episode\" value=\"{t_entry["episode"]}\"/>" if t_entry.get("episode") else ""}
-              {f"<torznab:attr name=\"artist\" value=\"{t_entry["artist"]}\"/>" if t_entry.get("artist") else ""}
-              {f"<torznab:attr name=\"album\" value=\"{t_entry["album"]}\"/>" if t_entry.get("album") else ""}
+                <title>{escape(t_entry["name"])}</title>
+                <guid isPermaLink="false">humehouse-{t_entry['hash_v2']}</guid>
+                <link>{escape(torrent_url_with_key)}</link>
+                <enclosure url="{escape(torrent_url_with_key)}" length="{t_entry["size"]}" type="application/x-bittorrent"/>
+                <size>{t_entry["size"]}</size>
+                <pubDate>{t_entry["added_on"].strftime("%a, %d %b %Y %H:%M:%S GMT")}</pubDate>
+                <category>{t_entry["category"]}</category>
+                <torznab:attr name="category" value="{t_entry["category"]}" />
+                <torznab:attr name="files" value="{t_entry['files']}"/>
+                <torznab:attr name="seeders" value="{seeders}"/>
+                <torznab:attr name="leechers" value="{leechers}"/>
+                <torznab:attr name="peers" value="{seeders + leechers}"/>
+                <torznab:attr name="grabs" value="{t_entry['grabs']}"/>
+                <torznab:attr name="infohash" value="{t_entry['hash_v2']}"/>
+                {f"<torznab:attr name=\"poster\" value=\"{user_map[added_by_user_id]}\"/>" if user_map.get(added_by_user_id) else ""}
+                {f"<torznab:attr name=\"imdbid\" value=\"{t_entry["imdbid"]}\"/>" if t_entry.get("imdbid") else ""}
+                {f"<torznab:attr name=\"tmdbid\" value=\"{t_entry["tmdbid"]}\"/>" if t_entry.get("tmdbid") else ""}
+                {f"<torznab:attr name=\"tvdbid\" value=\"{t_entry["tvdbid"]}\"/>" if t_entry.get("tvdbid") else ""}
+                {f"<torznab:attr name=\"season\" value=\"{t_entry["season"]}\"/>" if t_entry.get("season") else ""}
+                {f"<torznab:attr name=\"episode\" value=\"{t_entry["episode"]}\"/>" if t_entry.get("episode") else ""}
+                {f"<torznab:attr name=\"artist\" value=\"{t_entry["artist"]}\"/>" if t_entry.get("artist") else ""}
+                {f"<torznab:attr name=\"album\" value=\"{t_entry["album"]}\"/>" if t_entry.get("album") else ""}
             </item>
             """
             items.append(item)
 
         xml = f"""<?xml version="1.0" encoding="UTF-8" ?>
-        <rss version="2.0" xmlns:torznab="http://torznab.com/schemas/2015/feed">
-          <channel>
-            <title>HumeHouse Private Indexer</title>
-            <description>For friends of David</description>
-            <link>https://indexer.humehouse.com/api</link>
-            <torznab:response offset="{offset}" total="{total_matches}"/>
-            {"".join(items)}
-          </channel>
-        </rss>"""
+            <rss version="2.0" xmlns:torznab="http://torznab.com/schemas/2015/feed">
+                <channel>
+                    <title>HumeHouse Private Indexer</title>
+                    <description>For friends of David</description>
+                    <link>https://indexer.humehouse.com/api</link>
+                    <torznab:response offset="{offset}" total="{total_matches}"/>
+                    {"".join(items)}
+                </channel>
+            </rss>
+        """
         return Response(content=xml, media_type="application/xml")
 
     else:
@@ -467,8 +484,8 @@ async def upload(user: User = Depends(api_key_required), category: int = Form(..
         os.unlink(torrent_download_path)
 
     await mysql.execute("""
-                        INSERT INTO torrents (name, normalized_name, season, episode, imdbid, tmdbid, tvdbid, artist, album, torrent_path, size, category, hash_v1, hash_v2, files,
-                                              added_on, added_by_user_id, last_seen)
+                        INSERT INTO torrents (name, normalized_name, season, episode, imdbid, tmdbid, tvdbid, artist, album, torrent_path, size, category, hash_v1,
+                                              hash_v2, files, added_on, added_by_user_id, last_seen)
                         VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, NOW(), %s, NOW())
                         """,
                         (torrent_name, normalized_torrent_name, season_match, episode_match, imdbid, tmdbid, tvdbid, artist, album, torrent_save_path, size, category,

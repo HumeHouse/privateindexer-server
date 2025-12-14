@@ -24,6 +24,7 @@ USERS_TABLE_SQL = """
                       `last_ip`           varchar(45) COLLATE utf8mb4_general_ci           DEFAULT NULL,
                       `last_seen`         datetime                                         DEFAULT NULL ON UPDATE CURRENT_TIMESTAMP,
                       `reachable`         tinyint                                 NOT NULL DEFAULT 0,
+                      `public_uploads`    tinyint                                 NOT NULL DEFAULT 0,
                       PRIMARY KEY (`id`),
                       UNIQUE KEY `api_key` (`api_key`)
                   ) ENGINE = InnoDB
