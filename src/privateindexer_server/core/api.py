@@ -107,8 +107,8 @@ async def current_user(user: User = Depends(api_key_required), request: Request 
 
     # TODO: remove this logic in future release
     if public_uploads is not None:
-        await mysql.execute("UPDATE users SET client_version = %s, last_ip = %s, last_seen=NOW(), reachable = %s, public_uploads = %s WHERE id=%s",
-                            (v, f"{announce_ip}:{port}", reachable, user.user_id, public_uploads,))
+        await mysql.execute("UPDATE users SET client_version = %s, last_ip = %s, last_seen=NOW(), reachable = %s, public_uploads = %s WHERE id = %s",
+                            (v, f"{announce_ip}:{port}", reachable, public_uploads, user.user_id))
     else:
         await mysql.execute("UPDATE users SET client_version = %s, last_ip = %s, last_seen=NOW(), reachable = %s WHERE id=%s",
                             (v, f"{announce_ip}:{port}", reachable, user.user_id))
