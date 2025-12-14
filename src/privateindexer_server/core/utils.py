@@ -1,3 +1,4 @@
+from datetime import datetime, timezone
 import os
 import re
 from decimal import Decimal
@@ -7,7 +8,7 @@ import libtorrent as lt
 from fastapi import Request
 
 from privateindexer_server.core import mysql
-from privateindexer_server.core.config import TORRENTS_DIR
+from privateindexer_server.core.config import TORRENTS_DIR, CATEGORIES
 from privateindexer_server.core.logger import log
 
 SEASON_EPISODE_REGEX = re.compile(
@@ -68,6 +69,52 @@ def sanitize_bencode(obj):
     elif isinstance(obj, tuple):
         return tuple(sanitize_bencode(v) for v in obj)
     return obj
+
+
+def get_category_name(category_id: int) -> str | None:
+    return {category["id"]: category["name"] for category in CATEGORIES}.get(category_id)
+
+
+def format_bytes(num_bytes: int) -> str:
+    if num_bytes < 1024:
+        return f"{num_bytes} B"
+    if num_bytes < 1024 ** 2:
+        return f"{num_bytes / 1024:.2f} KiB"
+    if num_bytes < 1024 ** 3:
+        return f"{num_bytes / (1024 ** 2):.2f} MiB"
+    return f"{num_bytes / (1024 ** 3):.2f} GiB"
+
+
+def time_ago(dt: datetime) -> str:
+    if not dt:
+        return "—"
+
+    dt = dt.replace(tzinfo=timezone.utc)
+    now = datetime.now(timezone.utc)
+    delta = now - dt
+    seconds = int(delta.total_seconds())
+
+    if seconds < 0:
+        return "just now"
+
+    if seconds < 10:
+        return "just now"
+    if seconds < 60:
+        return f"{seconds} seconds ago"
+
+    minutes = seconds // 60
+    if minutes < 60:
+        return f"{minutes} minute{'s' if minutes != 1 else ''} ago"
+
+    hours = minutes // 60
+    if hours < 24:
+        return f"{hours} hour{'s' if hours != 1 else ''} ago"
+
+    days = hours // 24
+    if days < 7:
+        return f"{days} day{'s' if days != 1 else ''} ago"
+
+    return f"on {dt.strftime('%Y-%m-%d')}"
 
 
 def get_client_ip(request: Request) -> str:

@@ -179,10 +179,6 @@ async def torznab_api(user: User = Depends(api_key_required), t: str = Query(...
             where_clauses.append(f"t.added_by_user_id != %s")
             where_params.append(user.user_id)
 
-        users_query = f"SELECT id, label FROM users WHERE public_uploads = TRUE"
-        users_results = await mysql.fetch_all(users_query)
-        user_map = {user["id"]: user["label"] for user in users_results}
-
         # if no query is specified in a regular search, assume an RSS query is being made
         if t == "search" and (not q or q.strip() == ""):
 
@@ -201,12 +197,12 @@ async def torznab_api(user: User = Depends(api_key_required), t: str = Query(...
             items = []
             for t_entry in results:
                 torrent_url_with_key = f"https://indexer.humehouse.com/grab?hash_v2={t_entry['hash_v2']}&apikey={user.apikey}"
-                added_by_user_id = t_entry["added_by_user_id"]
+                torrent_link = f"https://indexer.humehouse.com/view/{t_entry["id"]}?apikey={user.apikey}"
                 items.append(f"""
                     <item>
                         <title>{escape(t_entry["name"])}</title>
                         <guid isPermaLink="false">humehouse-{t_entry['hash_v2']}</guid>
-                        <link>{escape(torrent_url_with_key)}</link>
+                        <comments>{escape(torrent_link)}</comments>
                         <enclosure url="{escape(torrent_url_with_key)}" length="{t_entry["size"]}" type="application/x-bittorrent"/>
                         <size>{t_entry["size"]}</size>
                         <pubDate>{t_entry["added_on"].strftime("%a, %d %b %Y %H:%M:%S GMT")}</pubDate>
@@ -215,7 +211,6 @@ async def torznab_api(user: User = Depends(api_key_required), t: str = Query(...
                         <torznab:attr name="files" value="{t_entry['files']}"/>
                         <torznab:attr name="grabs" value="{t_entry['grabs']}"/>
                         <torznab:attr name="infohash" value="{t_entry['hash_v2']}"/>
-                        {f"<torznab:attr name=\"poster\" value=\"{user_map[added_by_user_id]}\"/>" if user_map.get(added_by_user_id) else ""}
                         {f"<torznab:attr name=\"imdbid\" value=\"{t_entry["imdbid"]}\"/>" if t_entry.get("imdbid") else ""}
                         {f"<torznab:attr name=\"tmdbid\" value=\"{t_entry["tmdbid"]}\"/>" if t_entry.get("tmdbid") else ""}
                         {f"<torznab:attr name=\"tvdbid\" value=\"{t_entry["tvdbid"]}\"/>" if t_entry.get("tvdbid") else ""}
@@ -229,7 +224,7 @@ async def torznab_api(user: User = Depends(api_key_required), t: str = Query(...
             xml = f"""<?xml version="1.0" encoding="UTF-8" ?>
                 <rss version="2.0" xmlns:torznab="http://torznab.com/schemas/2015/feed">
                     <channel>
-                        <title>HumeHouse Private Indexer</title>
+                        <title>HumeHouse PrivateIndexer</title>
                         <description>For friends of David</description>
                         {"".join(items)}
                     </channel>
@@ -337,12 +332,13 @@ async def torznab_api(user: User = Depends(api_key_required), t: str = Query(...
             leechers = t_entry["leechers"]
 
             torrent_url_with_key = f"https://indexer.humehouse.com/grab?hash_v2={t_entry['hash_v2']}&apikey={user.apikey}"
-            added_by_user_id = t_entry["added_by_user_id"]
+            torrent_link = f"https://indexer.humehouse.com/view/{t_entry["id"]}?apikey={user.apikey}"
             item = f"""
             <item>
                 <title>{escape(t_entry["name"])}</title>
                 <guid isPermaLink="false">humehouse-{t_entry['hash_v2']}</guid>
                 <link>{escape(torrent_url_with_key)}</link>
+                <comments>{escape(torrent_link)}</comments>
                 <enclosure url="{escape(torrent_url_with_key)}" length="{t_entry["size"]}" type="application/x-bittorrent"/>
                 <size>{t_entry["size"]}</size>
                 <pubDate>{t_entry["added_on"].strftime("%a, %d %b %Y %H:%M:%S GMT")}</pubDate>
@@ -354,7 +350,6 @@ async def torznab_api(user: User = Depends(api_key_required), t: str = Query(...
                 <torznab:attr name="peers" value="{seeders + leechers}"/>
                 <torznab:attr name="grabs" value="{t_entry['grabs']}"/>
                 <torznab:attr name="infohash" value="{t_entry['hash_v2']}"/>
-                {f"<torznab:attr name=\"poster\" value=\"{user_map[added_by_user_id]}\"/>" if user_map.get(added_by_user_id) else ""}
                 {f"<torznab:attr name=\"imdbid\" value=\"{t_entry["imdbid"]}\"/>" if t_entry.get("imdbid") else ""}
                 {f"<torznab:attr name=\"tmdbid\" value=\"{t_entry["tmdbid"]}\"/>" if t_entry.get("tmdbid") else ""}
                 {f"<torznab:attr name=\"tvdbid\" value=\"{t_entry["tvdbid"]}\"/>" if t_entry.get("tvdbid") else ""}
@@ -369,7 +364,7 @@ async def torznab_api(user: User = Depends(api_key_required), t: str = Query(...
         xml = f"""<?xml version="1.0" encoding="UTF-8" ?>
             <rss version="2.0" xmlns:torznab="http://torznab.com/schemas/2015/feed">
                 <channel>
-                    <title>HumeHouse Private Indexer</title>
+                    <title>HumeHouse PrivateIndexer</title>
                     <description>For friends of David</description>
                     <link>https://indexer.humehouse.com/api</link>
                     <torznab:response offset="{offset}" total="{total_matches}"/>
