@@ -1,10 +1,10 @@
 import os
 
-APP_VERSION = "1.5.3"
+APP_VERSION = "1.6.0"
 
 TORRENTS_DIR = "/app/torrents"
 
-CATEGORIES = {"movies": {"id": 2000, "name": "Movies"}, "tv": {"id": 5000, "name": "TV"}, "audio": {"id": 3000, "name": "Audio"}}
+CATEGORIES = [{"id": 2000, "name": "Movies"}, {"id": 5000, "name": "TV"}, {"id": 3000, "name": "Audio"}]
 
 ANNOUNCE_TRACKER_URL = "https://tracker.humehouse.com/announce"
 
