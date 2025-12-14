@@ -156,7 +156,7 @@ async def torznab_api(user: User = Depends(api_key_required), t: str = Query(...
             <server version="1.0" title="HumeHouse PrivateIndexer Server"/>
             <limits default="100" max="1000"/>
             <categories>
-            {''.join([f'<category id="{c["id"]}" name="{c["name"]}"/>' for c in CATEGORIES.values()])}
+            {''.join([f'<category id="{c["id"]}" name="{c["name"]}"/>' for c in CATEGORIES])}
             </categories>
             <searching>
                 <search available="yes" supportedParams="q"/>
@@ -427,7 +427,7 @@ async def upload(user: User = Depends(api_key_required), category: int = Form(..
     user_id = user.user_id
     user_label = user.user_label
 
-    category_id_list = [cat["id"] for cat in CATEGORIES.values()]
+    category_id_list = [cat["id"] for cat in CATEGORIES]
     if category not in category_id_list:
         raise HTTPException(status_code=400, detail="Invalid category")
 
