@@ -89,8 +89,10 @@ async def get_stats(user: User = Depends(api_key_required)):
     return JSONResponse(analytics)
 
 
+# TODO: public_uploads should be a required query param in future release
 @router.get("/user")
-async def current_user(user: User = Depends(api_key_required), request: Request = None, v: str = Query(...), announce_ip: str = Query(None), port: int = Query(None)):
+async def current_user(user: User = Depends(api_key_required), request: Request = None, v: str = Query(...), announce_ip: str = Query(None), port: int = Query(None),
+                       public_uploads: bool = Query(None)):
     announce_ip = announce_ip or utils.get_client_ip(request)
     port = port or 6881
 
@@ -103,8 +105,13 @@ async def current_user(user: User = Depends(api_key_required), request: Request 
         log.warning(f"[USER] User '{user.user_label}' ({announce_ip}:{port} - UNREACHABLE) connected with PrivateIndexer client v{v}")
         pass
 
-    await mysql.execute("UPDATE users SET client_version = %s, last_ip = %s, last_seen=NOW(), reachable = %s WHERE id=%s",
-                        (v, f"{announce_ip}:{port}", reachable, user.user_id,))
+    # TODO: remove this logic in future release
+    if public_uploads is not None:
+        await mysql.execute("UPDATE users SET client_version = %s, last_ip = %s, last_seen=NOW(), reachable = %s, public_uploads = %s WHERE id=%s",
+                            (v, f"{announce_ip}:{port}", reachable, user.user_id, public_uploads,))
+    else:
+        await mysql.execute("UPDATE users SET client_version = %s, last_ip = %s, last_seen=NOW(), reachable = %s WHERE id=%s",
+                            (v, f"{announce_ip}:{port}", reachable, user.user_id))
 
     user_data = {"user_label": user.user_label, "announce_ip": announce_ip, "is_reachable": reachable, }
     return JSONResponse(user_data)
