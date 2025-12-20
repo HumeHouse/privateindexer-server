@@ -89,10 +89,9 @@ async def get_stats(user: User = Depends(api_key_required)):
     return JSONResponse(analytics)
 
 
-# TODO: public_uploads should be a required query param in future release
 @router.get("/user")
 async def current_user(user: User = Depends(api_key_required), request: Request = None, v: str = Query(...), announce_ip: str = Query(None), port: int = Query(None),
-                       public_uploads: bool = Query(None)):
+                       public_uploads: bool = Query(...)):
     announce_ip = announce_ip or utils.get_client_ip(request)
     port = port or 6881
 
@@ -105,13 +104,8 @@ async def current_user(user: User = Depends(api_key_required), request: Request 
         log.warning(f"[USER] User '{user.user_label}' ({announce_ip}:{port} - UNREACHABLE) connected with PrivateIndexer client v{v}")
         pass
 
-    # TODO: remove this logic in future release
-    if public_uploads is not None:
-        await mysql.execute("UPDATE users SET client_version = %s, last_ip = %s, last_seen=NOW(), reachable = %s, public_uploads = %s WHERE id = %s",
-                            (v, f"{announce_ip}:{port}", reachable, public_uploads, user.user_id))
-    else:
-        await mysql.execute("UPDATE users SET client_version = %s, last_ip = %s, last_seen=NOW(), reachable = %s WHERE id=%s",
-                            (v, f"{announce_ip}:{port}", reachable, user.user_id))
+    await mysql.execute("UPDATE users SET client_version = %s, last_ip = %s, last_seen=NOW(), reachable = %s, public_uploads = %s WHERE id = %s",
+                        (v, f"{announce_ip}:{port}", reachable, public_uploads, user.user_id))
 
     user_data = {"user_label": user.user_label, "announce_ip": announce_ip, "is_reachable": reachable, }
     return JSONResponse(user_data)
@@ -196,7 +190,7 @@ async def torznab_api(user: User = Depends(api_key_required), t: str = Query(...
 
             items = []
             for t_entry in results:
-                torrent_url_with_key = f"https://indexer.humehouse.com/grab?hash_v2={t_entry['hash_v2']}&apikey={user.apikey}"
+                torrent_url_with_key = f"https://indexer.humehouse.com/grab?infohash={t_entry['hash_v2']}&apikey={user.apikey}"
                 torrent_link = f"https://indexer.humehouse.com/view/{t_entry["id"]}?apikey={user.apikey}"
                 items.append(f"""
                     <item>
@@ -331,7 +325,7 @@ async def torznab_api(user: User = Depends(api_key_required), t: str = Query(...
             seeders = t_entry["seeders"]
             leechers = t_entry["leechers"]
 
-            torrent_url_with_key = f"https://indexer.humehouse.com/grab?hash_v2={t_entry['hash_v2']}&apikey={user.apikey}"
+            torrent_url_with_key = f"https://indexer.humehouse.com/grab?infohash={t_entry['hash_v2']}&apikey={user.apikey}"
             torrent_link = f"https://indexer.humehouse.com/view/{t_entry["id"]}?apikey={user.apikey}"
             item = f"""
             <item>
@@ -380,20 +374,15 @@ async def torznab_api(user: User = Depends(api_key_required), t: str = Query(...
 
 
 @router.get("/grab")
-async def grab(user: User = Depends(api_key_required), hash_v1: str = Query(None), hash_v2: str = Query(None), nograb: bool = Query(False)):
-    if not hash_v1 and not hash_v2:
-        raise HTTPException(status_code=422, detail="Specify one of either hash_v1 or hash_v2")
-
-    hash_to_search = (hash_v2 or hash_v1).lower()
-
-    torrent = await mysql.fetch_one("SELECT * FROM torrents WHERE hash_v1=%s OR hash_v2 LIKE %s LIMIT 1", (hash_to_search, f"{hash_to_search}%"))
+async def grab(user: User = Depends(api_key_required), infohash: str = Query(...), nograb: bool = Query(False)):
+    torrent = await mysql.fetch_one("SELECT id, torrent_path FROM torrents WHERE hash_v2 = %s LIMIT 1", (infohash,))
     if not torrent:
-        log.debug(f"[GRAB] User '{user.user_label}' tried to grab invalid torrent with hash '{hash_to_search}'")
+        log.debug(f"[GRAB] User '{user.user_label}' tried to grab invalid torrent with hash '{infohash}'")
         raise HTTPException(status_code=404, detail="Torrent not found")
 
     torrent_path = torrent["torrent_path"]
     if not os.path.exists(torrent_path):
-        log.error(f"[GRAB] Torrent file missing for hash {hash_to_search}")
+        log.error(f"[GRAB] Torrent file missing for hash {infohash}")
         raise HTTPException(status_code=404, detail="Torrent file missing")
 
     torrent_filename = os.path.basename(torrent_path)
@@ -409,14 +398,14 @@ async def grab(user: User = Depends(api_key_required), hash_v1: str = Query(None
 
         bencoded = lt.bencode(torrent_dict)
     except Exception as e:
-        log.error(f"[GRAB] Failed to add tracker to torrent with hash '{torrent["hash_v2"]}: {e}")
+        log.error(f"[GRAB] Failed to add tracker to torrent with hash '{infohash}: {e}")
         raise HTTPException(status_code=500, detail="Internal server error")
 
     # only increment the grab counter and log it if query param was not set
     if not nograb:
         await mysql.execute("UPDATE torrents SET grabs = grabs + 1 WHERE id=%s", (torrent["id"],))
 
-        log.info(f"[GRAB] User '{user.user_label}' grabbed torrent by hash '{torrent["hash_v1"] if hash_v1 else torrent["hash_v2"]}'")
+        log.info(f"[GRAB] User '{user.user_label}' grabbed torrent by hash '{infohash}'")
 
     return Response(content=bencoded, media_type="application/x-bittorrent", headers={"Content-Disposition": f'attachment; filename="{torrent_filename}"'})
 
@@ -445,10 +434,12 @@ async def upload(user: User = Depends(api_key_required), category: int = Form(..
         size = info.total_size()
         hash_v1, hash_v2 = utils.get_torrent_hashes(torrent_download_path)
 
+        hash_v2_truncated = hash_v2[:40]
+
         season_match, episode_match = utils.extract_season_episode(torrent_name)
-    except:
+    except Exception as e:
         os.unlink(torrent_download_path)
-        log.error(f"[UPLOAD] Failed to process torrent file sent by '{user_label}': '{torrent_file.filename}'")
+        log.error(f"[UPLOAD] Failed to process torrent file sent by '{user_label}': '{torrent_file.filename}': {e}")
         raise HTTPException(status_code=400, detail="Invalid torrent file")
 
     if imdbid:
@@ -480,11 +471,11 @@ async def upload(user: User = Depends(api_key_required), category: int = Form(..
 
     await mysql.execute("""
                         INSERT INTO torrents (name, normalized_name, season, episode, imdbid, tmdbid, tvdbid, artist, album, torrent_path, size, category, hash_v1,
-                                              hash_v2, files, added_on, added_by_user_id, last_seen)
-                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, NOW(), %s, NOW())
+                                              hash_v2, hash_v2_trunc, files, added_on, added_by_user_id, last_seen)
+                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, NOW(), %s, NOW())
                         """,
                         (torrent_name, normalized_torrent_name, season_match, episode_match, imdbid, tmdbid, tvdbid, artist, album, torrent_save_path, size, category,
-                         hash_v1, hash_v2, file_count, user_id))
+                         hash_v1, hash_v2, hash_v2_truncated, file_count, user_id))
 
     log.info(f"[UPLOAD] User '{user_label}' uploaded torrent '{torrent_name}'")
 
@@ -495,20 +486,19 @@ async def upload(user: User = Depends(api_key_required), category: int = Form(..
 async def sync(user: User = Depends(api_key_required), request: Request = None):
     torrents: list[dict[str, int | str]] = await request.json()
 
-    client_hashes = [t.get("hash_v1", "").lower() for t in torrents if t.get("hash_v1")] + [t.get("hash_v2", "").lower() for t in torrents if t.get("hash_v2")]
+    client_hashes = [torrent["infohash"] for torrent in torrents if torrent.get("infohash")]
 
     if not client_hashes:
         missing_ids = [torrent["id"] for torrent in torrents]
         return JSONResponse({"missing_ids": missing_ids})
 
     placeholders = ", ".join(["%s"] * len(client_hashes))
-    query = f"SELECT LOWER(hash_v1) AS h1, LOWER(hash_v2) AS h2 FROM torrents WHERE hash_v1 IN ({placeholders}) OR hash_v2 IN ({placeholders})"
-    params = client_hashes + client_hashes
-    rows = await mysql.fetch_all(query, params)
+    query = f"SELECT hash_v2 FROM torrents WHERE hash_v2 IN ({placeholders})"
+    rows = await mysql.fetch_all(query, client_hashes)
 
-    existing_hashes = {h for row in rows for h in (row["h1"], row["h2"]) if h}
+    existing_hashes = {row["hash_v2"] for row in rows}
 
-    missing_ids = [t["id"] for t in torrents if t.get("hash_v1", "").lower() not in existing_hashes and t.get("hash_v2", "").lower() not in existing_hashes]
+    missing_ids = [torrent["id"] for torrent in torrents if torrent["infohash"] not in existing_hashes]
 
     log.debug(f"[SYNC] User '{user.user_label}' synced {len(existing_hashes)} existing, {len(missing_ids)} missing (attempted {len(torrents)})")
 
