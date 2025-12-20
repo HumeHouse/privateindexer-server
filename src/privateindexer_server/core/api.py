@@ -498,7 +498,7 @@ async def sync(user: User = Depends(api_key_required), request: Request = None):
 
     params.append(user.user_id)
 
-    query = f"SELECT hash_v2 FROM torrents WHERE hash_v2 IN ({placeholders}) AND hash_v1 IS NOT NULL AND added_by_user_id = %s"
+    query = f"SELECT hash_v2 FROM torrents WHERE hash_v2 IN ({placeholders}) AND (hash_v1 IS NOT NULL OR added_by_user_id != %s)"
     rows = await mysql.fetch_all(query, params)
 
     existing_hashes = {row["hash_v2"] for row in rows}
