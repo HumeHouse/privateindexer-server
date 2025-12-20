@@ -190,7 +190,7 @@ async def torznab_api(user: User = Depends(api_key_required), t: str = Query(...
 
             items = []
             for t_entry in results:
-                torrent_url_with_key = f"https://indexer.humehouse.com/grab?hash_v2={t_entry['hash_v2']}&apikey={user.apikey}"
+                torrent_url_with_key = f"https://indexer.humehouse.com/grab?infohash={t_entry['hash_v2']}&apikey={user.apikey}"
                 torrent_link = f"https://indexer.humehouse.com/view/{t_entry["id"]}?apikey={user.apikey}"
                 items.append(f"""
                     <item>
@@ -325,7 +325,7 @@ async def torznab_api(user: User = Depends(api_key_required), t: str = Query(...
             seeders = t_entry["seeders"]
             leechers = t_entry["leechers"]
 
-            torrent_url_with_key = f"https://indexer.humehouse.com/grab?hash_v2={t_entry['hash_v2']}&apikey={user.apikey}"
+            torrent_url_with_key = f"https://indexer.humehouse.com/grab?infohash={t_entry['hash_v2']}&apikey={user.apikey}"
             torrent_link = f"https://indexer.humehouse.com/view/{t_entry["id"]}?apikey={user.apikey}"
             item = f"""
             <item>
@@ -374,20 +374,15 @@ async def torznab_api(user: User = Depends(api_key_required), t: str = Query(...
 
 
 @router.get("/grab")
-async def grab(user: User = Depends(api_key_required), hash_v1: str = Query(None), hash_v2: str = Query(None), nograb: bool = Query(False)):
-    if not hash_v1 and not hash_v2:
-        raise HTTPException(status_code=422, detail="Specify one of either hash_v1 or hash_v2")
-
-    hash_to_search = (hash_v2 or hash_v1).lower()
-
-    torrent = await mysql.fetch_one("SELECT * FROM torrents WHERE hash_v1=%s OR hash_v2 LIKE %s LIMIT 1", (hash_to_search, f"{hash_to_search}%"))
+async def grab(user: User = Depends(api_key_required), infohash: str = Query(...), nograb: bool = Query(False)):
+    torrent = await mysql.fetch_one("SELECT id, torrent_path FROM torrents WHERE hash_v2 = %s LIMIT 1", (infohash,))
     if not torrent:
-        log.debug(f"[GRAB] User '{user.user_label}' tried to grab invalid torrent with hash '{hash_to_search}'")
+        log.debug(f"[GRAB] User '{user.user_label}' tried to grab invalid torrent with hash '{infohash}'")
         raise HTTPException(status_code=404, detail="Torrent not found")
 
     torrent_path = torrent["torrent_path"]
     if not os.path.exists(torrent_path):
-        log.error(f"[GRAB] Torrent file missing for hash {hash_to_search}")
+        log.error(f"[GRAB] Torrent file missing for hash {infohash}")
         raise HTTPException(status_code=404, detail="Torrent file missing")
 
     torrent_filename = os.path.basename(torrent_path)
@@ -403,14 +398,14 @@ async def grab(user: User = Depends(api_key_required), hash_v1: str = Query(None
 
         bencoded = lt.bencode(torrent_dict)
     except Exception as e:
-        log.error(f"[GRAB] Failed to add tracker to torrent with hash '{torrent["hash_v2"]}: {e}")
+        log.error(f"[GRAB] Failed to add tracker to torrent with hash '{infohash}: {e}")
         raise HTTPException(status_code=500, detail="Internal server error")
 
     # only increment the grab counter and log it if query param was not set
     if not nograb:
         await mysql.execute("UPDATE torrents SET grabs = grabs + 1 WHERE id=%s", (torrent["id"],))
 
-        log.info(f"[GRAB] User '{user.user_label}' grabbed torrent by hash '{torrent["hash_v1"] if hash_v1 else torrent["hash_v2"]}'")
+        log.info(f"[GRAB] User '{user.user_label}' grabbed torrent by hash '{infohash}'")
 
     return Response(content=bencoded, media_type="application/x-bittorrent", headers={"Content-Disposition": f'attachment; filename="{torrent_filename}"'})
 
