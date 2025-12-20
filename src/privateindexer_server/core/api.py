@@ -493,7 +493,7 @@ async def sync(user: User = Depends(api_key_required), request: Request = None):
         return JSONResponse({"missing_ids": missing_ids})
 
     placeholders = ", ".join(["%s"] * len(client_hashes))
-    query = f"SELECT hash_v2 FROM torrents WHERE hash_v2 IN ({placeholders})"
+    query = f"SELECT hash_v2 FROM torrents WHERE hash_v2 IN ({placeholders}) AND hash_v1 IS NOT NULL"
     rows = await mysql.fetch_all(query, client_hashes)
 
     existing_hashes = {row["hash_v2"] for row in rows}
