@@ -455,8 +455,9 @@ async def upload(user: User = Depends(api_key_required), category: int = Form(..
     if existing:
         if existing["added_by_user_id"] == user_id:
             await mysql.execute(
-                "UPDATE torrents SET name = %s, normalized_name = %s, season = %s, episode = %s, imdbid = %s, tmdbid = %s, tvdbid = %s, artist = %s, album = %s, last_seen = NOW() WHERE id = %s",
-                (torrent_name, normalized_torrent_name, season_match, episode_match, imdbid, tmdbid, tvdbid, artist, album, existing["id"]))
+                "UPDATE torrents SET name = %s, normalized_name = %s, hash_v1 = %s, hash_v2 = %s, hash_v2_trunc = %s, season = %s, episode = %s, imdbid = %s, tmdbid = %s, tvdbid = %s, artist = %s, album = %s, last_seen = NOW() WHERE id = %s",
+                (torrent_name, normalized_torrent_name, hash_v1, hash_v2, hash_v2_truncated, season_match, episode_match, imdbid, tmdbid, tvdbid, artist, album,
+                 existing["id"]))
             log.info(f"[UPLOAD] User '{user_label}' re-uploaded torrent, renamed to '{torrent_name}'")
         else:
             log.debug(f"[UPLOAD] User '{user_label}' uploaded duplicate torrent: '{torrent_name}'")
@@ -492,9 +493,13 @@ async def sync(user: User = Depends(api_key_required), request: Request = None):
         missing_ids = [torrent["id"] for torrent in torrents]
         return JSONResponse({"missing_ids": missing_ids})
 
-    placeholders = ", ".join(["%s"] * len(client_hashes))
-    query = f"SELECT hash_v2 FROM torrents WHERE hash_v2 IN ({placeholders})"
-    rows = await mysql.fetch_all(query, client_hashes)
+    params = client_hashes
+    placeholders = ", ".join(["%s"] * len(params))
+
+    params.append(user.user_id)
+
+    query = f"SELECT hash_v2 FROM torrents WHERE hash_v2 IN ({placeholders}) AND (hash_v1 IS NOT NULL OR added_by_user_id != %s)"
+    rows = await mysql.fetch_all(query, params)
 
     existing_hashes = {row["hash_v2"] for row in rows}
 
