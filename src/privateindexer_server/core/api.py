@@ -493,9 +493,13 @@ async def sync(user: User = Depends(api_key_required), request: Request = None):
         missing_ids = [torrent["id"] for torrent in torrents]
         return JSONResponse({"missing_ids": missing_ids})
 
-    placeholders = ", ".join(["%s"] * len(client_hashes))
-    query = f"SELECT hash_v2 FROM torrents WHERE hash_v2 IN ({placeholders}) AND hash_v1 IS NOT NULL"
-    rows = await mysql.fetch_all(query, client_hashes)
+    params = client_hashes
+    placeholders = ", ".join(["%s"] * len(params))
+
+    params.append(user.user_id)
+
+    query = f"SELECT hash_v2 FROM torrents WHERE hash_v2 IN ({placeholders}) AND hash_v1 IS NOT NULL AND added_by_user_id = %s"
+    rows = await mysql.fetch_all(query, params)
 
     existing_hashes = {row["hash_v2"] for row in rows}
 
