@@ -435,9 +435,9 @@ async def upload(user: User = Depends(api_key_required), category: int = Form(..
         hash_v1, hash_v2 = utils.get_torrent_hashes(torrent_download_path)
 
         season_match, episode_match = utils.extract_season_episode(torrent_name)
-    except:
+    except Exception as e:
         os.unlink(torrent_download_path)
-        log.error(f"[UPLOAD] Failed to process torrent file sent by '{user_label}': '{torrent_file.filename}'")
+        log.error(f"[UPLOAD] Failed to process torrent file sent by '{user_label}': '{torrent_file.filename}': {e}")
         raise HTTPException(status_code=400, detail="Invalid torrent file")
 
     if imdbid:
