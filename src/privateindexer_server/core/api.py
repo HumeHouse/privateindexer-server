@@ -486,20 +486,19 @@ async def upload(user: User = Depends(api_key_required), category: int = Form(..
 async def sync(user: User = Depends(api_key_required), request: Request = None):
     torrents: list[dict[str, int | str]] = await request.json()
 
-    client_hashes = [t.get("hash_v1", "").lower() for t in torrents if t.get("hash_v1")] + [t.get("hash_v2", "").lower() for t in torrents if t.get("hash_v2")]
+    client_hashes = [torrent["infohash"] for torrent in torrents if torrent.get("infohash")]
 
     if not client_hashes:
         missing_ids = [torrent["id"] for torrent in torrents]
         return JSONResponse({"missing_ids": missing_ids})
 
     placeholders = ", ".join(["%s"] * len(client_hashes))
-    query = f"SELECT LOWER(hash_v1) AS h1, LOWER(hash_v2) AS h2 FROM torrents WHERE hash_v1 IN ({placeholders}) OR hash_v2 IN ({placeholders})"
-    params = client_hashes + client_hashes
-    rows = await mysql.fetch_all(query, params)
+    query = f"SELECT hash_v2 FROM torrents WHERE hash_v2 IN ({placeholders})"
+    rows = await mysql.fetch_all(query, client_hashes)
 
-    existing_hashes = {h for row in rows for h in (row["h1"], row["h2"]) if h}
+    existing_hashes = {row["hash_v2"] for row in rows}
 
-    missing_ids = [t["id"] for t in torrents if t.get("hash_v1", "").lower() not in existing_hashes and t.get("hash_v2", "").lower() not in existing_hashes]
+    missing_ids = [torrent["id"] for torrent in torrents if torrent["infohash"] not in existing_hashes]
 
     log.debug(f"[SYNC] User '{user.user_label}' synced {len(existing_hashes)} existing, {len(missing_ids)} missing (attempted {len(torrents)})")
 
