@@ -2,10 +2,9 @@ import asyncio
 import datetime
 import os
 
-from privateindexer_server.core import mysql, utils
+from privateindexer_server.core import mysql, utils, thread_executor
 from privateindexer_server.core.config import DATABASE_CHECK_INTERVAL
 from privateindexer_server.core.logger import log
-from privateindexer_server.core.thread_executor import EXECUTOR
 
 
 async def check_torrent_database():
@@ -15,6 +14,8 @@ async def check_torrent_database():
     loop = asyncio.get_running_loop()
     futures = []
 
+    hash_executor = thread_executor.get_hash_executor()
+
     torrents = await mysql.fetch_all("SELECT * FROM torrents")
     for torrent in torrents:
         torrent_path = torrent.get("torrent_path")
@@ -22,7 +23,7 @@ async def check_torrent_database():
         if torrent_path and os.path.exists(torrent_path):
             continue
 
-        future = loop.run_in_executor(EXECUTOR, utils.find_matching_torrent, torrent["hash_v1"], torrent["hash_v2"])
+        future = loop.run_in_executor(hash_executor, utils.find_matching_torrent, torrent["hash_v1"], torrent["hash_v2"])
         futures.append(future)
 
     total_torrents = len(torrents)
@@ -42,6 +43,9 @@ async def check_torrent_database():
                 log.warning(f"[DB-CHECK] Purged torrent due to no match for hash: {hash_v2}")
         except Exception as e:
             log.error(f"[DB-CHECK] Error in torrent post-hash-check: {e}")
+
+    hash_executor.shutdown()
+    log.debug(f"[DB-CHECK] Hash executor workers closed")
 
     return total_torrents, updated_torrents, removed_torrents
 
