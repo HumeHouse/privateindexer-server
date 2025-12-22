@@ -1,4 +1,5 @@
 import datetime
+import itertools
 import os
 import re
 import shutil
@@ -11,7 +12,7 @@ from fastapi import HTTPException, Query, Request, UploadFile, File, Form, APIRo
 from fastapi.responses import Response, PlainTextResponse, JSONResponse
 
 from privateindexer_server.core import mysql, utils, redis
-from privateindexer_server.core.config import CATEGORIES, PEER_TIMEOUT, ANNOUNCE_TRACKER_URL
+from privateindexer_server.core.config import CATEGORIES, PEER_TIMEOUT, ANNOUNCE_TRACKER_URL, SYNC_BATCH_SIZE
 from privateindexer_server.core.logger import log
 from privateindexer_server.core.utils import User
 
@@ -487,24 +488,44 @@ async def upload(user: User = Depends(api_key_required), category: int = Form(..
 async def sync(user: User = Depends(api_key_required), request: Request = None):
     torrents: list[dict[str, int | str]] = await request.json()
 
-    client_hashes = [torrent["infohash"] for torrent in torrents if torrent.get("infohash")]
+    rows = []
+    for t in torrents:
+        hash_v2 = t.get("hash_v2") or t.get("infohash")
+        if hash_v2:
+            rows.append((t["id"], hash_v2))
 
-    if not client_hashes:
-        missing_ids = [torrent["id"] for torrent in torrents]
-        return JSONResponse({"missing_ids": missing_ids})
+    if not rows:
+        return JSONResponse({"missing_ids": [t["id"] for t in torrents]})
 
-    params = client_hashes
-    placeholders = ", ".join(["%s"] * len(params))
+    missing_ids: list[int] = []
 
-    params.append(user.user_id)
+    for batch in itertools.batched(rows, SYNC_BATCH_SIZE):
+        selects = []
+        params = []
 
-    query = f"SELECT hash_v2 FROM torrents WHERE hash_v2 IN ({placeholders}) AND (hash_v1 IS NOT NULL OR added_by_user_id != %s)"
-    rows = await mysql.fetch_all(query, params)
+        for torrent_id, hash_v2 in batch:
+            selects.append("SELECT %s AS id, %s AS hash_v2")
+            params.extend([torrent_id, hash_v2])
 
-    existing_hashes = {row["hash_v2"] for row in rows}
+        union_sql = " UNION ALL ".join(selects)
 
-    missing_ids = [torrent["id"] for torrent in torrents if torrent["infohash"] not in existing_hashes]
+        query = f"""
+                SELECT c.id
+                FROM (
+                    {union_sql}
+                ) AS c
+                LEFT JOIN torrents t
+                  ON t.hash_v2 = c.hash_v2
+                WHERE
+                    t.hash_v2 IS NULL
+                    OR (t.hash_v1 IS NULL AND t.added_by_user_id = %s)
+            """
 
-    log.debug(f"[SYNC] User '{user.user_label}' synced {len(existing_hashes)} existing, {len(missing_ids)} missing (attempted {len(torrents)})")
+        params.append(user.user_id)
+
+        result = await mysql.fetch_all(query, params)
+        missing_ids.extend(row["id"] for row in result)
+
+    log.debug(f"[SYNC] User '{user.user_label}' performed sync: {len(missing_ids)} missing (sent {len(torrents)})")
 
     return JSONResponse({"missing_ids": missing_ids})
