@@ -488,11 +488,15 @@ async def upload(user: User = Depends(api_key_required), category: int = Form(..
 async def sync(user: User = Depends(api_key_required), request: Request = None):
     torrents: list[dict[str, int | str]] = await request.json()
 
+    # TODO: remove these deprecated checks for old "hash_v2" and nonexistent "name" keys - they will always be present in future versions of the client
     rows = []
     for t in torrents:
         hash_v2 = t.get("hash_v2") or t.get("infohash")
+        torrent_name = t.get("name")
+        normalized_torrent_name = utils.normalize_search_string(torrent_name) if torrent_name else None
+
         if hash_v2:
-            rows.append((t["id"], hash_v2))
+            rows.append((t["id"], hash_v2, torrent_name, normalized_torrent_name))
 
     if not rows:
         return JSONResponse({"missing_ids": [t["id"] for t in torrents]})
@@ -503,28 +507,41 @@ async def sync(user: User = Depends(api_key_required), request: Request = None):
         selects = []
         params = []
 
-        for torrent_id, hash_v2 in batch:
-            selects.append("SELECT %s AS id, %s AS hash_v2")
-            params.extend([torrent_id, hash_v2])
+        for torrent_id, hash_v2, torrent_name, normalized_torrent_name in batch:
+            selects.append("SELECT %s AS id, %s AS hash_v2, %s AS name, %s AS normalized_name")
+            params.extend([torrent_id, hash_v2, torrent_name, normalized_torrent_name])
 
         union_sql = " UNION ALL ".join(selects)
 
-        query = f"""
-                SELECT c.id
-                FROM (
-                    {union_sql}
-                ) AS c
-                LEFT JOIN torrents t
-                  ON t.hash_v2 = c.hash_v2
-                WHERE
-                    t.hash_v2 IS NULL
-                    OR (t.hash_v1 IS NULL AND t.added_by_user_id = %s)
-            """
+        missing_query = f"""
+                    SELECT c.id
+                    FROM (
+                        {union_sql}
+                    ) AS c
+                    LEFT JOIN torrents t
+                      ON t.hash_v2 = c.hash_v2
+                    WHERE
+                        t.hash_v2 IS NULL
+                        OR (t.hash_v1 IS NULL AND t.added_by_user_id = %s)
+                """
 
-        params.append(user.user_id)
-
-        result = await mysql.fetch_all(query, params)
+        result = await mysql.fetch_all(missing_query, params + [user.user_id])
         missing_ids.extend(row["id"] for row in result)
+
+        update_query = f"""
+                    UPDATE torrents t
+                    JOIN (
+                        {union_sql}
+                    ) AS c
+                      ON c.hash_v2 = t.hash_v2
+                    SET t.name = c.name, t.normalized_name = c.normalized_name
+                    WHERE
+                        c.name IS NOT NULL AND c.normalized_name IS NOT NULL
+                        AND (t.name != c.name OR t.normalized_name != c.normalized_name)
+                        AND t.added_by_user_id = %s
+                """
+
+        await mysql.execute(update_query, params + [user.user_id])
 
     log.debug(f"[SYNC] User '{user.user_label}' performed sync: {len(missing_ids)} missing (sent {len(torrents)})")
 
