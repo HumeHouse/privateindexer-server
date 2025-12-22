@@ -538,7 +538,6 @@ async def sync(user: User = Depends(api_key_required), request: Request = None):
                     WHERE
                         c.name IS NOT NULL AND c.normalized_name IS NOT NULL
                         AND (t.name != c.name OR t.normalized_name != c.normalized_name)
-                        AND t.added_by_user_id = %s
                 """
 
         await mysql.execute(update_query, params + [user.user_id])
