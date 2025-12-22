@@ -1,6 +1,6 @@
 import os
 
-APP_VERSION = "1.7.1"
+APP_VERSION = "1.8.0"
 
 TORRENTS_DIR = "/app/torrents"
 
