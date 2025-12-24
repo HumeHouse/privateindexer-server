@@ -6,3 +6,4 @@ python-multipart~=0.0.21
 aiomysql~=0.3.2
 redis[hiredis]~=7.1.0
 pydantic~=2.12.5
+cryptography~=46.0.3
