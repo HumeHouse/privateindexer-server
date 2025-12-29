@@ -21,7 +21,7 @@ async def lifespan(_: FastAPI):
 
     log.info("[APP] Connecting Redis")
 
-    redis.connect_database()
+    await redis.get_connection()
 
     log.info("[APP] Connecting and setting up MySQL")
 
@@ -50,6 +50,8 @@ async def lifespan(_: FastAPI):
 
     await mysql.disconnect_database()
 
+    await redis.close_connection()
+
 
 app = FastAPI(lifespan=lifespan, docs_url=None, redoc_url=None, openapi_url=None,
               title=f"PrivateIndexer Server", version=APP_VERSION)
@@ -62,15 +64,16 @@ app.include_router(gui.router)
 
 @app.middleware("http")
 async def track_stats(request: Request, call_next):
-    redis_connection = redis.get_connection()
     client_ip = utils.get_client_ip(request)
 
+    redis_connection = redis.get_connection()
     pipe = redis_connection.pipeline()
-    _ = pipe.incr("stats:requests")
-    _ = pipe.sadd("stats:unique_ips", client_ip)
+
+    await pipe.incr("stats:requests")
+    await pipe.sadd("stats:unique_ips", client_ip)
 
     if request.headers.get("content-length"):
-        _ = pipe.incrby("stats:bytes_received", int(request.headers["content-length"]))
+        await pipe.incrby("stats:bytes_received", int(request.headers["content-length"]))
 
     start_time = time.perf_counter()
     response: Response = await call_next(request)
@@ -82,14 +85,16 @@ async def track_stats(request: Request, call_next):
     if query_string:
         request_string = f"{request_string}?{query_string.decode()}"
 
-    if duration > HIGH_LATECY_THRESHOLD:
+    threshold = getattr(request.state, "latency_threshold", HIGH_LATECY_THRESHOLD)
+
+    if duration > threshold:
         log.warning(f"[APP] High response time ({duration} ms) - [{request_method}] {request_string}")
     else:
         log.debug(f"[APP] Request ({duration} ms) - [{request_method}] {request_string}")
 
     if response.headers.get("content-length"):
-        _ = pipe.incrby("stats:bytes_sent", int(response.headers["content-length"]))
+        await pipe.incrby("stats:bytes_sent", int(response.headers["content-length"]))
 
-    pipe.execute()
+    await pipe.execute()
 
     return response
