@@ -12,7 +12,7 @@ from fastapi import HTTPException, Query, Request, UploadFile, File, Form, APIRo
 from fastapi.responses import Response, PlainTextResponse, JSONResponse
 
 from privateindexer_server.core import mysql, utils, redis
-from privateindexer_server.core.config import CATEGORIES, PEER_TIMEOUT, ANNOUNCE_TRACKER_URL, SYNC_BATCH_SIZE
+from privateindexer_server.core.config import CATEGORIES, ANNOUNCE_TRACKER_URL, SYNC_BATCH_SIZE
 from privateindexer_server.core.logger import log
 from privateindexer_server.core.utils import User
 
@@ -116,20 +116,6 @@ async def get_analytics(user: User = Depends(api_key_required)):
     torrent_metrics = await mysql.fetch_one("SELECT COUNT(*) as total_torrents, SUM(grabs) as grabs FROM torrents")
     total_torrents = int(torrent_metrics.get("total_torrents", 0))
     grabs_total = int(torrent_metrics.get("grabs") or 0)
-
-    seed_leech_query = """
-                       SELECT SUM(IF(left_bytes = 0, 1, 0))                                AS seeding_peers, \
-                              SUM(IF(left_bytes > 0, 1, 0))                                AS leeching_peers, \
-                              COUNT(DISTINCT CASE WHEN left_bytes = 0 THEN torrent_id END) AS seeding_torrents, \
-                              COUNT(DISTINCT CASE WHEN left_bytes > 0 THEN torrent_id END) AS leeching_torrents, \
-                              COUNT(*)                                                     AS peers_total
-                       FROM peers
-                       WHERE last_seen > NOW() - INTERVAL %s SECOND; \
-                       """
-    seed_leech = await mysql.fetch_one(seed_leech_query, (int(PEER_TIMEOUT),))
-    seeding_torrents = int(seed_leech.get("seeding_torrents") or 0)
-    leeching_torrents = int(seed_leech.get("leeching_torrents") or 0)
-    peers_total = int(seed_leech.get("peers_total") or 0)
 
     analytics = {"requests": int(requests), "bytes_sent": int(bytes_sent), "bytes_received": int(bytes_received), "unique_visitors": unique_visitors,
                  "total_torrents": total_torrents, "seeding_torrents": seeding_torrents, "leeching_torrents": leeching_torrents, "total_peers": total_peers,
