@@ -91,24 +91,23 @@ async def get_analytics(user: User = Depends(api_key_required)):
 
         # fetch all peer hashes in one go using a pipeline
         pipe = redis_connection.pipeline()
-        for key in peer_keys:
-            await pipe.hgetall(key)
-        all_peers_data = await pipe.execute()  # list of dicts
+        for peer_key in peer_keys:
+            await pipe.hgetall(peer_key)
+        all_peers_data = await pipe.execute()
 
-        # aggregate by torrent
-        torrents = {}
-        for key, pdata in zip(peer_keys, all_peers_data):
-            if not pdata:
+        # aggregate each peer with its mapped data to each torrent which it belongs to
+        torrents = defaultdict(lambda: {"seeders": 0, "leechers": 0})
+        for peer_key, peer_data in zip(peer_keys, all_peers_data):
+            # skip invalid peer data
+            if not peer_data:
                 continue
 
             # parse torrent_id from key "peer:{torrent_id}:{peer_id}"
-            _, torrent_id, _ = key.split(":")
+            _, torrent_id, _ = peer_key.split(":")
             torrent_id = int(torrent_id)
 
-            if torrent_id not in torrents:
-                torrents[torrent_id] = {"seeders": 0, "leechers": 0}
-
-            left = int(pdata.get("left", 1))
+            # increment seeders/leechers based on peer's peice data left to obtain
+            left = int(peer_data.get("left", 1))
             if left == 0:
                 torrents[torrent_id]["seeders"] += 1
             else:
