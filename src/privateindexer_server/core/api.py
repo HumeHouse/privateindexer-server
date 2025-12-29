@@ -669,7 +669,7 @@ async def sync(user: User = Depends(api_key_required), request: Request = None):
         result = await mysql.fetch_all(missing_query, params + [user.user_id])
         missing_ids.extend(row["id"] for row in result)
 
-        # reset the name and normalized name in the database to match what the client sent us
+        # reset the name and normalized name in the database to match what the client sent us (only if they are original uploader)
         update_query = f"""
                     UPDATE torrents t
                     JOIN (
@@ -678,11 +678,11 @@ async def sync(user: User = Depends(api_key_required), request: Request = None):
                       ON c.infohash = t.hash_v2
                     SET t.name = c.name, t.normalized_name = c.normalized_name
                     WHERE
-                        c.name IS NOT NULL AND c.normalized_name IS NOT NULL
+                        c.name IS NOT NULL AND c.normalized_name IS NOT NULL AND t.added_by_user_id = %s
                         AND (t.name != c.name OR t.normalized_name != c.normalized_name)
                 """
 
-        await mysql.execute(update_query, params)
+        await mysql.execute(update_query, params + [user.user_id])
 
     log.debug(f"[SYNC] User '{user.user_label}' performed sync: {len(missing_ids)} missing (sent {len(torrents)})")
 
