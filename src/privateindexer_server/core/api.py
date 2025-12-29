@@ -46,19 +46,61 @@ async def get_stats(user: User = Depends(api_key_required)):
     log.debug(f"[ANALYTICS] User '{user.user_label}' requested analytics")
     try:
         redis_connection = redis.get_connection()
-        requests = redis_connection.get("stats:requests") or 0
-        bytes_sent = redis_connection.get("stats:bytes_sent") or 0
-        bytes_received = redis_connection.get("stats:bytes_received") or 0
-        unique_visitors = redis_connection.scard("stats:unique_ips")
-        request_times_raw = redis_connection.lrange("stats:request_times", -1000, -1)
+
+        requests = int((await redis_connection.get("stats:requests")) or 0)
+        bytes_sent = int((await redis_connection.get("stats:bytes_sent")) or 0)
+        bytes_received = int((await redis_connection.get("stats:bytes_received")) or 0)
+        unique_visitors = await redis_connection.scard("stats:unique_ips")
+
+        times_raw = await redis_connection.lrange("stats:request_times", -1000, -1)
+        times = [float(t) for t in times_raw] if times_raw else []
+
+        request_time_avg = (sum(times) / len(times)) / 1000 if times else 0.0
+        request_time_min = min(times) / 1000 if times else 0.0
+        request_time_max = max(times) / 1000 if times else 0.0
+
+        # get all peer keys at once
+        peer_keys = []
+        cursor = 0
+        while True:
+            cursor, keys = await redis_connection.scan(cursor=cursor, match="peer:*:*", count=1000)
+            peer_keys.extend(keys)
+            if cursor == 0:
+                break
+
+        # fetch all peer hashes in one go using a pipeline
+        pipe = redis_connection.pipeline()
+        for key in peer_keys:
+            await pipe.hgetall(key)
+        all_peers_data = await pipe.execute()  # list of dicts
+
+        # aggregate by torrent
+        torrents = {}
+        for key, pdata in zip(peer_keys, all_peers_data):
+            if not pdata:
+                continue
+
+            # parse torrent_id from key "peer:{torrent_id}:{peer_id}"
+            _, torrent_id, _ = key.split(":")
+            torrent_id = int(torrent_id)
+
+            if torrent_id not in torrents:
+                torrents[torrent_id] = {"seeders": 0, "leechers": 0}
+
+            left = int(pdata.get("left", 1))
+            if left == 0:
+                torrents[torrent_id]["seeders"] += 1
+            else:
+                torrents[torrent_id]["leechers"] += 1
+
+        # now you have seeders/leechers per torrent without per-peer roundtrips
+        total_peers = sum(v["seeders"] + v["leechers"] for v in torrents.values())
+        seeding_torrents = sum(1 for v in torrents.values() if v["seeders"])
+        leeching_torrents = sum(1 for v in torrents.values() if v["leechers"])
+
     except Exception as e:
         log.error(f"[ANALYTICS] Failed to get analytics from Redis: {e}")
         return JSONResponse({})
-
-    request_times = [float(x) for x in request_times_raw] if request_times_raw else []
-    request_time_avg = (sum(request_times) / len(request_times)) / 1000 if request_times else 0.0
-    request_time_max = max(request_times) / 1000 if request_times else 0.0
-    request_time_min = min(request_times) / 1000 if request_times else 0.0
 
     data_transfer = await mysql.fetch_one("SELECT SUM(downloaded) AS total_downloaded, SUM(uploaded) AS total_uploaded FROM users")
     total_downloaded = int(data_transfer["total_downloaded"] or 0)
@@ -83,7 +125,7 @@ async def get_stats(user: User = Depends(api_key_required)):
     peers_total = int(seed_leech.get("peers_total") or 0)
 
     analytics = {"requests": int(requests), "bytes_sent": int(bytes_sent), "bytes_received": int(bytes_received), "unique_visitors": unique_visitors,
-                 "total_torrents": total_torrents, "seeding_torrents": seeding_torrents, "leeching_torrents": leeching_torrents, "total_peers": peers_total,
+                 "total_torrents": total_torrents, "seeding_torrents": seeding_torrents, "leeching_torrents": leeching_torrents, "total_peers": total_peers,
                  "total_grabs": grabs_total, "total_downloaded": total_downloaded, "total_uploaded": total_uploaded, "request_time_avg": request_time_avg,
                  "request_time_min": request_time_min, "request_time_max": request_time_max, }
 
@@ -190,29 +232,39 @@ async def torznab_api(user: User = Depends(api_key_required), t: str = Query(...
             results = await mysql.fetch_all(rss_query, query_params)
 
             items = []
-            for t_entry in results:
-                torrent_url_with_key = f"https://indexer.humehouse.com/grab?infohash={t_entry['hash_v2']}&apikey={user.apikey}"
-                torrent_link = f"https://indexer.humehouse.com/view/{t_entry["id"]}?apikey={user.apikey}"
+            for torrent_result in results:
+                torrent_id = torrent_result["id"]
+
+                try:
+                    seeders, leechers = await utils.get_seeders_and_leechers(torrent_id)
+                except Exception as e:
+                    seeders = leechers = 0
+                    log.error(f"[TORZNAB] Failed to fetch seeders/leechers from Redis: {e}")
+
+                torrent_url_with_key = f"https://indexer.humehouse.com/grab?infohash={torrent_result['hash_v2']}&apikey={user.apikey}"
+                torrent_link = f"https://indexer.humehouse.com/view/{torrent_result["id"]}?apikey={user.apikey}"
                 items.append(f"""
                     <item>
-                        <title>{escape(t_entry["name"])}</title>
-                        <guid isPermaLink="false">humehouse-{t_entry['hash_v2']}</guid>
+                        <title>{escape(torrent_result["name"])}</title>
+                        <guid isPermaLink="false">humehouse-{torrent_result['hash_v2']}</guid>
                         <comments>{escape(torrent_link)}</comments>
-                        <enclosure url="{escape(torrent_url_with_key)}" length="{t_entry["size"]}" type="application/x-bittorrent"/>
-                        <size>{t_entry["size"]}</size>
-                        <pubDate>{t_entry["added_on"].strftime("%a, %d %b %Y %H:%M:%S GMT")}</pubDate>
-                        <category>{t_entry["category"]}</category>
-                        <torznab:attr name="category" value="{t_entry["category"]}" />
-                        <torznab:attr name="files" value="{t_entry['files']}"/>
-                        <torznab:attr name="grabs" value="{t_entry['grabs']}"/>
-                        <torznab:attr name="infohash" value="{t_entry['hash_v2']}"/>
-                        {f"<torznab:attr name=\"imdbid\" value=\"{t_entry["imdbid"]}\"/>" if t_entry.get("imdbid") else ""}
-                        {f"<torznab:attr name=\"tmdbid\" value=\"{t_entry["tmdbid"]}\"/>" if t_entry.get("tmdbid") else ""}
-                        {f"<torznab:attr name=\"tvdbid\" value=\"{t_entry["tvdbid"]}\"/>" if t_entry.get("tvdbid") else ""}
-                        {f"<torznab:attr name=\"season\" value=\"{t_entry["season"]}\"/>" if t_entry.get("season") else ""}
-                        {f"<torznab:attr name=\"episode\" value=\"{t_entry["episode"]}\"/>" if t_entry.get("episode") else ""}
-                        {f"<torznab:attr name=\"artist\" value=\"{t_entry["artist"]}\"/>" if t_entry.get("artist") else ""}
-                        {f"<torznab:attr name=\"album\" value=\"{t_entry["album"]}\"/>" if t_entry.get("album") else ""}
+                        <enclosure url="{escape(torrent_url_with_key)}" length="{torrent_result["size"]}" type="application/x-bittorrent"/>
+                        <size>{torrent_result["size"]}</size>
+                        <pubDate>{torrent_result["added_on"].strftime("%a, %d %b %Y %H:%M:%S GMT")}</pubDate>
+                        <category>{torrent_result["category"]}</category>
+                        <torznab:attr name="category" value="{torrent_result["category"]}" />
+                        <torznab:attr name="files" value="{torrent_result['files']}"/>
+                        <torznab:attr name="seeders" value="{seeders}"/>
+                        <torznab:attr name="leechers" value="{leechers}"/>
+                        <torznab:attr name="grabs" value="{torrent_result['grabs']}"/>
+                        <torznab:attr name="infohash" value="{torrent_result['hash_v2']}"/>
+                        {f"<torznab:attr name=\"imdbid\" value=\"{torrent_result["imdbid"]}\"/>" if torrent_result.get("imdbid") else ""}
+                        {f"<torznab:attr name=\"tmdbid\" value=\"{torrent_result["tmdbid"]}\"/>" if torrent_result.get("tmdbid") else ""}
+                        {f"<torznab:attr name=\"tvdbid\" value=\"{torrent_result["tvdbid"]}\"/>" if torrent_result.get("tvdbid") else ""}
+                        {f"<torznab:attr name=\"season\" value=\"{torrent_result["season"]}\"/>" if torrent_result.get("season") else ""}
+                        {f"<torznab:attr name=\"episode\" value=\"{torrent_result["episode"]}\"/>" if torrent_result.get("episode") else ""}
+                        {f"<torznab:attr name=\"artist\" value=\"{torrent_result["artist"]}\"/>" if torrent_result.get("artist") else ""}
+                        {f"<torznab:attr name=\"album\" value=\"{torrent_result["album"]}\"/>" if torrent_result.get("album") else ""}
                     </item>
                 """)
 
@@ -295,22 +347,13 @@ async def torznab_api(user: User = Depends(api_key_required), t: str = Query(...
 
         query = f"""
             SELECT *, COUNT(*) OVER() AS total_matches
-            FROM (
-                SELECT t.*,
-                       COALESCE(SUM(IF(p.left_bytes = 0, 1, 0)), 0) AS seeders,
-                       COALESCE(SUM(IF(p.left_bytes > 0, 1, 0)), 0) AS leechers
-                FROM torrents t
-                LEFT JOIN peers p
-                       ON t.id = p.torrent_id
-                      AND p.last_seen > NOW() - INTERVAL %s SECOND
-                WHERE {where_sql}
-                GROUP BY t.id
-            ) AS sub
-            ORDER BY seeders DESC
+            FROM torrents t
+            WHERE {where_sql}
+            ORDER BY added_on DESC
             LIMIT %s OFFSET %s
         """
 
-        query_params = (int(PEER_TIMEOUT),) + tuple(where_params) + (int(limit), int(offset))
+        query_params = tuple(where_params) + (int(limit), int(offset))
         results = await mysql.fetch_all(query, query_params)
         total_matches = results[0]["total_matches"] if results else 0
 
@@ -322,36 +365,41 @@ async def torznab_api(user: User = Depends(api_key_required), t: str = Query(...
                  f"returned {len(results)} results, found {total_matches} total")
 
         items = []
-        for t_entry in results:
-            seeders = t_entry["seeders"]
-            leechers = t_entry["leechers"]
+        for torrent_result in results:
+            torrent_id = torrent_result["id"]
 
-            torrent_url_with_key = f"https://indexer.humehouse.com/grab?infohash={t_entry['hash_v2']}&apikey={user.apikey}"
-            torrent_link = f"https://indexer.humehouse.com/view/{t_entry["id"]}?apikey={user.apikey}"
+            try:
+                seeders, leechers = await utils.get_seeders_and_leechers(torrent_id)
+            except Exception as e:
+                seeders = leechers = 0
+                log.error(f"[TORZNAB] Failed to fetch seeders/leechers from Redis: {e}")
+
+            torrent_url_with_key = f"https://indexer.humehouse.com/grab?infohash={torrent_result['hash_v2']}&apikey={user.apikey}"
+            torrent_link = f"https://indexer.humehouse.com/view/{torrent_result["id"]}?apikey={user.apikey}"
             item = f"""
             <item>
-                <title>{escape(t_entry["name"])}</title>
-                <guid isPermaLink="false">humehouse-{t_entry['hash_v2']}</guid>
+                <title>{escape(torrent_result["name"])}</title>
+                <guid isPermaLink="false">humehouse-{torrent_result['hash_v2']}</guid>
                 <link>{escape(torrent_url_with_key)}</link>
                 <comments>{escape(torrent_link)}</comments>
-                <enclosure url="{escape(torrent_url_with_key)}" length="{t_entry["size"]}" type="application/x-bittorrent"/>
-                <size>{t_entry["size"]}</size>
-                <pubDate>{t_entry["added_on"].strftime("%a, %d %b %Y %H:%M:%S GMT")}</pubDate>
-                <category>{t_entry["category"]}</category>
-                <torznab:attr name="category" value="{t_entry["category"]}" />
-                <torznab:attr name="files" value="{t_entry['files']}"/>
+                <enclosure url="{escape(torrent_url_with_key)}" length="{torrent_result["size"]}" type="application/x-bittorrent"/>
+                <size>{torrent_result["size"]}</size>
+                <pubDate>{torrent_result["added_on"].strftime("%a, %d %b %Y %H:%M:%S GMT")}</pubDate>
+                <category>{torrent_result["category"]}</category>
+                <torznab:attr name="category" value="{torrent_result["category"]}" />
+                <torznab:attr name="files" value="{torrent_result['files']}"/>
                 <torznab:attr name="seeders" value="{seeders}"/>
                 <torznab:attr name="leechers" value="{leechers}"/>
                 <torznab:attr name="peers" value="{seeders + leechers}"/>
-                <torznab:attr name="grabs" value="{t_entry['grabs']}"/>
-                <torznab:attr name="infohash" value="{t_entry['hash_v2']}"/>
-                {f"<torznab:attr name=\"imdbid\" value=\"{t_entry["imdbid"]}\"/>" if t_entry.get("imdbid") else ""}
-                {f"<torznab:attr name=\"tmdbid\" value=\"{t_entry["tmdbid"]}\"/>" if t_entry.get("tmdbid") else ""}
-                {f"<torznab:attr name=\"tvdbid\" value=\"{t_entry["tvdbid"]}\"/>" if t_entry.get("tvdbid") else ""}
-                {f"<torznab:attr name=\"season\" value=\"{t_entry["season"]}\"/>" if t_entry.get("season") else ""}
-                {f"<torznab:attr name=\"episode\" value=\"{t_entry["episode"]}\"/>" if t_entry.get("episode") else ""}
-                {f"<torznab:attr name=\"artist\" value=\"{t_entry["artist"]}\"/>" if t_entry.get("artist") else ""}
-                {f"<torznab:attr name=\"album\" value=\"{t_entry["album"]}\"/>" if t_entry.get("album") else ""}
+                <torznab:attr name="grabs" value="{torrent_result['grabs']}"/>
+                <torznab:attr name="infohash" value="{torrent_result['hash_v2']}"/>
+                {f"<torznab:attr name=\"imdbid\" value=\"{torrent_result["imdbid"]}\"/>" if torrent_result.get("imdbid") else ""}
+                {f"<torznab:attr name=\"tmdbid\" value=\"{torrent_result["tmdbid"]}\"/>" if torrent_result.get("tmdbid") else ""}
+                {f"<torznab:attr name=\"tvdbid\" value=\"{torrent_result["tvdbid"]}\"/>" if torrent_result.get("tvdbid") else ""}
+                {f"<torznab:attr name=\"season\" value=\"{torrent_result["season"]}\"/>" if torrent_result.get("season") else ""}
+                {f"<torznab:attr name=\"episode\" value=\"{torrent_result["episode"]}\"/>" if torrent_result.get("episode") else ""}
+                {f"<torznab:attr name=\"artist\" value=\"{torrent_result["artist"]}\"/>" if torrent_result.get("artist") else ""}
+                {f"<torznab:attr name=\"album\" value=\"{torrent_result["album"]}\"/>" if torrent_result.get("album") else ""}
             </item>
             """
             items.append(item)

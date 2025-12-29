@@ -4,7 +4,6 @@ from fastapi.templating import Jinja2Templates
 
 from privateindexer_server.core import mysql, utils
 from privateindexer_server.core.api import api_key_required
-from privateindexer_server.core.config import PEER_TIMEOUT
 from privateindexer_server.core.logger import log
 from privateindexer_server.core.utils import User
 
@@ -14,22 +13,16 @@ templates = Jinja2Templates(directory="/app/src/templates")
 
 @router.get("/view/{torrent_id}", response_class=HTMLResponse)
 async def view(torrent_id: int, request: Request, user: User = Depends(api_key_required)):
-    query = f"""
-        SELECT *
-        FROM (
-            SELECT t.*,
-                   COALESCE(SUM(IF(p.left_bytes = 0, 1, 0)), 0) AS seeders,
-                   COALESCE(SUM(IF(p.left_bytes > 0, 1, 0)), 0) AS leechers
-            FROM torrents t
-            LEFT JOIN peers p
-                   ON t.id = p.torrent_id
-                  AND p.last_seen > NOW() - INTERVAL %s SECOND
-            WHERE t.id=%s
-            GROUP BY t.id
-        ) AS sub
-        LIMIT 1
-    """
-    torrent = await mysql.fetch_one(query, (PEER_TIMEOUT, torrent_id))
+    torrent = await mysql.fetch_one("SELECT * FROM torrents WHERE id=%s", (torrent_id,))
+
+    try:
+        seeders, leechers = await utils.get_seeders_and_leechers(torrent_id)
+    except Exception as e:
+        seeders = leechers = 0
+        log.error(f"[VIEW] Failed to fetch seeders/leechers from Redis: {e}")
+
+    torrent["seeders"] = seeders
+    torrent["leechers"] = leechers
 
     if not torrent:
         raise HTTPException(status_code=404, detail="Torrent not found")

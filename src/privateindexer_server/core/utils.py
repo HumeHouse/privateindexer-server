@@ -1,14 +1,15 @@
-from datetime import datetime, timezone
 import os
 import re
+import time
+from datetime import datetime, timezone
 from decimal import Decimal
 from urllib.parse import unquote_to_bytes
 
 import libtorrent as lt
 from fastapi import Request
 
-from privateindexer_server.core import mysql
-from privateindexer_server.core.config import TORRENTS_DIR, CATEGORIES
+from privateindexer_server.core import mysql, redis
+from privateindexer_server.core.config import TORRENTS_DIR, CATEGORIES, PEER_TIMEOUT
 from privateindexer_server.core.logger import log
 
 SEASON_EPISODE_REGEX = re.compile(r"S(?P<season>\d{1,4})(?:E(?P<episode>\d{1,3}))?|(?P<season_alt>\d{1,4})x(?P<episode_alt>\d{1,3})", re.IGNORECASE, )
@@ -160,3 +161,23 @@ def extract_season_episode(name: str) -> tuple[int, int]:
     season = match.group("season") or match.group("season_alt")
     episode = match.group("episode") or match.group("episode_alt")
     return int(season) if season else None, int(episode) if episode else None
+
+
+async def get_seeders_and_leechers(torrent_id: int) -> tuple[int, int]:
+    redis_conn = redis.get_connection()
+    now = int(time.time())
+    cutoff = now - PEER_TIMEOUT
+
+    seeders = leechers = 0
+
+    peer_ids = await redis_conn.zrangebyscore(f"peers:{torrent_id}", min=cutoff, max=now)
+    for pid in peer_ids:
+        pdata = await redis_conn.hgetall(f"peer:{torrent_id}:{pid}")
+        if not pdata:
+            continue
+        if int(pdata.get("left", 1)) == 0:
+            seeders += 1
+        else:
+            leechers += 1
+
+    return seeders, leechers

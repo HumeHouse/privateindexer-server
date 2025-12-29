@@ -33,30 +33,6 @@ USERS_TABLE_SQL = """
                     COLLATE = utf8mb4_general_ci
                   """
 
-PEERS_TABLE_SQL = """
-                  CREATE TABLE `peers`
-                  (
-                      `id`              bigint unsigned                        NOT NULL AUTO_INCREMENT,
-                      `torrent_id`      bigint unsigned                        NOT NULL,
-                      `peer_id`         char(40) COLLATE utf8mb4_general_ci    NOT NULL,
-                      `ip`              varchar(45) COLLATE utf8mb4_general_ci NOT NULL,
-                      `port`            int                                    NOT NULL,
-                      `left_bytes`      bigint                                 NOT NULL,
-                      `last_seen`       timestamp                              NULL     DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-                      `user_id`         int                                    NOT NULL,
-                      `last_downloaded` bigint unsigned                        NOT NULL DEFAULT 0,
-                      `last_uploaded`   bigint unsigned                        NOT NULL DEFAULT 0,
-                      PRIMARY KEY (`id`),
-                      UNIQUE KEY `torrent_id` (`torrent_id`, `peer_id`),
-                      KEY `peers_users_id_fk` (`user_id`),
-                      CONSTRAINT `peers_torrents_id_fk` FOREIGN KEY (`torrent_id`) REFERENCES `torrents` (`id`) ON DELETE CASCADE,
-                      CONSTRAINT `peers_users_id_fk` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE
-                  ) ENGINE = InnoDB
-                    AUTO_INCREMENT = 21586464
-                    DEFAULT CHARSET = utf8mb4
-                    COLLATE = utf8mb4_general_ci
-                  """
-
 TORRENTS_TABLE_SQL = """
                      CREATE TABLE `torrents`
                      (
@@ -97,7 +73,7 @@ async def setup_database():
     _db_pool = await aiomysql.create_pool(host=MYSQL_HOST, port=MYSQL_PORT, user=MYSQL_USER, password=MYSQL_PASSWORD, db=MYSQL_DB, autocommit=True)
     log.debug("[MYSQL] Connected to database")
 
-    tables = {"torrents": TORRENTS_TABLE_SQL, "users": USERS_TABLE_SQL, "peers": PEERS_TABLE_SQL, }
+    tables = {"torrents": TORRENTS_TABLE_SQL, "users": USERS_TABLE_SQL,}
 
     async with _db_pool.acquire() as conn:
         async with conn.cursor() as cur:
