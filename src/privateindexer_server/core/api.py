@@ -33,6 +33,13 @@ async def api_key_required(apikey_query: str | None = Query(None, alias="apikey"
     return user
 
 
+def latency_threshold(ms: int):
+    async def set_latency_threshold(request: Request):
+        request.state.latency_threshold = ms
+
+    return set_latency_threshold
+
+
 @router.get("/health")
 def get_health():
     """
@@ -41,8 +48,8 @@ def get_health():
     return PlainTextResponse("OK")
 
 
-@router.get("/analytics")
-async def get_stats(user: User = Depends(api_key_required)):
+@router.get("/analytics", dependencies=[Depends(latency_threshold(1000))])
+async def get_analytics(user: User = Depends(api_key_required)):
     log.debug(f"[ANALYTICS] User '{user.user_label}' requested analytics")
     try:
         redis_connection = redis.get_connection()
@@ -532,7 +539,7 @@ async def upload(user: User = Depends(api_key_required), category: int = Form(..
     return PlainTextResponse("Successfully uploaded torrent")
 
 
-@router.post("/sync")
+@router.post("/sync", dependencies=[Depends(latency_threshold(5000))])
 async def sync(user: User = Depends(api_key_required), request: Request = None):
     torrents: list[dict[str, int | str]] = await request.json()
 
