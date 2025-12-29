@@ -1,39 +1,71 @@
 import asyncio
 import datetime
+from collections import defaultdict
 
-from privateindexer_server.core import mysql
-from privateindexer_server.core.config import STATS_UPDATE_INTERVAL, PEER_TIMEOUT
+from privateindexer_server.core import mysql, redis
+from privateindexer_server.core.config import STATS_UPDATE_INTERVAL
 from privateindexer_server.core.logger import log
 
 
 async def periodic_stats_update_task():
+    """
+    Task to update internal tracking statistics for each user based on Redis data
+    :return:
+    """
     log.debug("[STATS-UPDATE] Task loop started")
     while True:
         try:
             log.debug("[STATS-UPDATE] Running stats update")
             before = datetime.datetime.now()
+            redis_connection = redis.get_connection()
 
-            stats_query = """
-                          UPDATE users u
-                              LEFT JOIN (SELECT added_by_user_id        AS user_id,
-                                                COUNT(*)                AS torrents_uploaded,
-                                                COALESCE(SUM(grabs), 0) AS grabs
-                                         FROM torrents
-                                         GROUP BY added_by_user_id) t ON u.id = t.user_id
-                              LEFT JOIN (SELECT user_id,
-                                                SUM(left_bytes = 0) AS seeding,
-                                                SUM(left_bytes > 0) AS leeching
-                                         FROM peers
-                                         WHERE last_seen > NOW() - INTERVAL %s SECOND
-                                         GROUP BY user_id) p ON u.id = p.user_id
-                          SET u.torrents_uploaded = COALESCE(t.torrents_uploaded, 0),
-                              u.grabs             = COALESCE(t.grabs, 0),
-                              u.seeding           = COALESCE(p.seeding, 0),
-                              u.leeching          = COALESCE(p.leeching, 0)
-                          WHERE TRUE;
-                          """
+            # create a base dict for tracking stats per user
+            all_user_stats = defaultdict(lambda: {"seeding": 0, "leeching": 0})
 
-            await mysql.execute(stats_query, (PEER_TIMEOUT,))
+            # use a cursor to fetch all peer data to prevent Redis database locking
+            cursor = 0
+            while True:
+                cursor, peer_keys = await redis_connection.scan(cursor=cursor, match="peer:*:*", count=10000)
+                for peer_key in peer_keys:
+                    # fetch the peer mapping data for this peer ID
+                    peer_data = await redis_connection.hgetall(peer_key)
+                    if not peer_data:
+                        continue
+
+                    # skip invalid peer data
+                    try:
+                        user_id = int(peer_data["user_id"])
+                        left = int(peer_data["left"])
+                    except (KeyError, ValueError):
+                        continue
+
+                    # increment seeds/leeches based on number of data peices needed by peer
+                    if left == 0:
+                        all_user_stats[user_id]["seeding"] += 1
+                    else:
+                        all_user_stats[user_id]["leeching"] += 1
+
+                if cursor == 0:
+                    break
+
+            # update each user we have peer data for
+            for user_id, user_stats in all_user_stats.items():
+                seeding = user_stats["seeding"]
+                leeching = user_stats["leeching"]
+                await mysql.execute("UPDATE users SET seeding=%s, leeching=%s WHERE id=%s", (seeding, leeching, user_id,))
+
+            # update all user stats for torrents tracked in database
+            await mysql.execute("""
+                                UPDATE users u
+                                    LEFT JOIN (SELECT added_by_user_id        AS user_id,
+                                                      COUNT(*)                AS torrents_uploaded,
+                                                      COALESCE(SUM(grabs), 0) AS grabs
+                                               FROM torrents
+                                               GROUP BY added_by_user_id) t ON u.id = t.user_id
+                                SET u.torrents_uploaded = COALESCE(t.torrents_uploaded, 0),
+                                    u.grabs             = COALESCE(t.grabs, 0)
+                                WHERE TRUE
+                                """)
 
             delta = datetime.datetime.now() - before
             log.debug(f"[STATS-UPDATE] Stats update complete ({delta})")
