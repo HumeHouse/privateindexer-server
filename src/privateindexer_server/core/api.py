@@ -126,8 +126,8 @@ async def get_analytics(user: User = Depends(api_key_required)):
 
 
 @router.get("/user")
-async def current_user(user: User = Depends(api_key_required), request: Request = None, v: str = Query(...), announce_ip: str = Query(None), port: int = Query(None),
-                       public_uploads: bool = Query(...)):
+async def user_login_check(user: User = Depends(api_key_required), request: Request = None, v: str = Query(...), announce_ip: str = Query(None), port: int = Query(None),
+                           public_uploads: bool = Query(...)):
     announce_ip = announce_ip or utils.get_client_ip(request)
     port = port or 6881
 
