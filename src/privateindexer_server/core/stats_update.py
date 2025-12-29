@@ -8,6 +8,10 @@ from privateindexer_server.core.logger import log
 
 
 async def periodic_stats_update_task():
+    """
+    Task to update internal tracking statistics for each user based on Redis data
+    :return:
+    """
     log.debug("[STATS-UPDATE] Task loop started")
     while True:
         try:
@@ -15,22 +19,27 @@ async def periodic_stats_update_task():
             before = datetime.datetime.now()
             redis_connection = redis.get_connection()
 
+            # create a base dict for tracking stats per user
             all_user_stats = defaultdict(lambda: {"seeding": 0, "leeching": 0})
 
+            # use a cursor to fetch all peer data to prevent Redis database locking
             cursor = 0
             while True:
-                cursor, keys = await redis_connection.scan(cursor=cursor, match="peer:*:*", count=10000)
-                for key in keys:
-                    pdata = await redis_connection.hgetall(key)
-                    if not pdata:
+                cursor, peer_keys = await redis_connection.scan(cursor=cursor, match="peer:*:*", count=10000)
+                for peer_key in peer_keys:
+                    # fetch the peer mapping data for this peer ID
+                    peer_data = await redis_connection.hgetall(peer_key)
+                    if not peer_data:
                         continue
 
+                    # skip invalid peer data
                     try:
-                        user_id = int(pdata["user_id"])
-                        left = int(pdata["left"])
+                        user_id = int(peer_data["user_id"])
+                        left = int(peer_data["left"])
                     except (KeyError, ValueError):
                         continue
 
+                    # increment seeds/leeches based on number of data peices needed by peer
                     if left == 0:
                         all_user_stats[user_id]["seeding"] += 1
                     else:
@@ -39,11 +48,13 @@ async def periodic_stats_update_task():
                 if cursor == 0:
                     break
 
+            # update each user we have peer data for
             for user_id, user_stats in all_user_stats.items():
                 seeding = user_stats["seeding"]
                 leeching = user_stats["leeching"]
                 await mysql.execute("UPDATE users SET seeding=%s, leeching=%s WHERE id=%s", (seeding, leeching, user_id,))
 
+            # update all user stats for torrents tracked in database
             await mysql.execute("""
                                 UPDATE users u
                                     LEFT JOIN (SELECT added_by_user_id        AS user_id,
