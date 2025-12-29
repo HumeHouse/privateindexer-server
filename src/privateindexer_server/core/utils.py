@@ -40,7 +40,7 @@ def build_torrent_path(torrent_name: str) -> str:
     return os.path.join(TORRENTS_DIR, f"{torrent_name}.torrent")
 
 
-def normalize_search_string(s: str) -> str:
+def clean_text_filter(s: str) -> str:
     return re.sub(r"[^a-z0-9]", "", s.lower().strip())
 
 

@@ -286,7 +286,7 @@ async def torznab_api(user: User = Depends(api_key_required), t: str = Query(...
             return Response(content=xml, media_type="application/xml")
 
         if q is not None:
-            normalized_q = f"%{utils.normalize_search_string(q)}%"
+            normalized_q = f"%{utils.clean_text_filter(q)}%"
             where_clauses.append("t.normalized_name LIKE %s")
             where_params.append(normalized_q)
 
@@ -316,11 +316,11 @@ async def torznab_api(user: User = Depends(api_key_required), t: str = Query(...
             where_clauses.append("t.season IS NULL")
             where_clauses.append("t.episode IS NULL")
             if artist is not None:
-                normalized_artist = utils.normalize_search_string(artist)
+                normalized_artist = utils.clean_text_filter(artist)
                 where_clauses.append("t.artist = %s")
                 where_params.append(normalized_artist)
             if album is not None:
-                normalized_album = utils.normalize_search_string(album)
+                normalized_album = utils.clean_text_filter(album)
                 where_clauses.append("t.album = %s")
                 where_params.append(normalized_album)
 
@@ -478,7 +478,7 @@ async def upload(user: User = Depends(api_key_required), category: int = Form(..
 
     try:
         info = lt.torrent_info(torrent_download_path)
-        normalized_torrent_name = utils.normalize_search_string(torrent_name)
+        normalized_torrent_name = utils.clean_text_filter(torrent_name)
         file_count = len(info.files())
         size = info.total_size()
         hash_v1, hash_v2 = utils.get_torrent_hashes(torrent_download_path)
@@ -495,10 +495,10 @@ async def upload(user: User = Depends(api_key_required), category: int = Form(..
         imdbid = int(re.sub(r"\D", "", imdbid))
 
     if artist:
-        artist = utils.normalize_search_string(artist)
+        artist = utils.clean_text_filter(artist)
 
     if album:
-        album = utils.normalize_search_string(album)
+        album = utils.clean_text_filter(album)
 
     existing = await mysql.fetch_one("SELECT id, name, added_by_user_id FROM torrents WHERE hash_v1=%s OR hash_v2=%s", (hash_v1, hash_v2))
     if existing:
@@ -540,7 +540,7 @@ async def sync(user: User = Depends(api_key_required), request: Request = None):
     for t in torrents:
         infohash = t.get("infohash")
         torrent_name = t.get("name")
-        normalized_torrent_name = utils.normalize_search_string(torrent_name) if torrent_name else None
+        normalized_torrent_name = utils.clean_text_filter(torrent_name) if torrent_name else None
 
         if infohash:
             rows.append((t["id"], infohash, torrent_name, normalized_torrent_name))
