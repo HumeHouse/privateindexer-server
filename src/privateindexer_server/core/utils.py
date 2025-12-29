@@ -16,6 +16,9 @@ SEASON_EPISODE_REGEX = re.compile(r"S(?P<season>\d{1,4})(?:E(?P<episode>\d{1,3})
 
 
 class User:
+    """
+    Helper class to store user information
+    """
 
     def __init__(self, user_id: int, user_label: str, apikey: str, downloaded: int, uploaded: int):
         self.user_id: int = user_id
@@ -26,6 +29,9 @@ class User:
 
 
 async def get_user_by_key(apikey: str) -> User | None:
+    """
+    Validate API key sent by client and fetch user data from database
+    """
     if not apikey:
         return None
 
@@ -37,14 +43,23 @@ async def get_user_by_key(apikey: str) -> User | None:
 
 
 def build_torrent_path(torrent_name: str) -> str:
+    """
+    Helper to combine torrents directory with torrent name and add torrent extension
+    """
     return os.path.join(TORRENTS_DIR, f"{torrent_name}.torrent")
 
 
 def clean_text_filter(s: str) -> str:
+    """
+    Helper to remove invalid characters from text
+    """
     return re.sub(r"[^a-z0-9]", "", s.lower().strip())
 
 
 def extract_bt_param(raw_qs: bytes, key: str) -> bytes:
+    """
+    Helper function to pull Bittorrent query parameters from bytes
+    """
     prefix = key.encode("ascii") + b"="
     start = raw_qs.find(prefix)
     if start == -1:
@@ -58,6 +73,9 @@ def extract_bt_param(raw_qs: bytes, key: str) -> bytes:
 
 
 def sanitize_bencode(obj):
+    """
+    Helper function to clean items within other bencoded items
+    """
     if isinstance(obj, Decimal):
         return int(obj)
     elif isinstance(obj, dict):
@@ -70,10 +88,16 @@ def sanitize_bencode(obj):
 
 
 def get_category_name(category_id: int) -> str | None:
+    """
+    Fetch a category name based on ID
+    """
     return {category["id"]: category["name"] for category in CATEGORIES}.get(category_id)
 
 
 def format_bytes(num_bytes: int) -> str:
+    """
+    Convert integer bytes into human-readable text in base 1024
+    """
     if num_bytes < 1024:
         return f"{num_bytes} B"
     if num_bytes < 1024 ** 2:
@@ -84,6 +108,9 @@ def format_bytes(num_bytes: int) -> str:
 
 
 def time_ago(dt: datetime) -> str:
+    """
+    Convert a datetime to a human-readable 'x(value) y(unit) ago' format for time deltas
+    """
     if not dt:
         return "—"
 
@@ -91,9 +118,6 @@ def time_ago(dt: datetime) -> str:
     now = datetime.now(timezone.utc)
     delta = now - dt
     seconds = int(delta.total_seconds())
-
-    if seconds < 0:
-        return "just now"
 
     if seconds < 10:
         return "just now"
@@ -116,6 +140,9 @@ def time_ago(dt: datetime) -> str:
 
 
 def get_client_ip(request: Request) -> str:
+    """
+    Helper to extract the IP address from a request
+    """
     x_forwarded_for = request.headers.get("x-forwarded-for")
     if x_forwarded_for:
         return x_forwarded_for.split(",")[0].strip()
@@ -128,6 +155,9 @@ def get_client_ip(request: Request) -> str:
 
 
 def get_torrent_hashes(torrent_file: str) -> tuple[str, str]:
+    """
+    Decode the hash v1 and v2 from the torrent info of a torrent file
+    """
     try:
         info = lt.torrent_info(torrent_file)
         hashes = info.info_hashes()
@@ -139,6 +169,9 @@ def get_torrent_hashes(torrent_file: str) -> tuple[str, str]:
 
 
 def find_matching_torrent(torrent_hash_v1: str, torrent_hash_v2: str) -> tuple[str | None, str]:
+    """
+    Attempt to search for a torrent file whose hashes match the specified parameters
+    """
     found_match = None
 
     for torrent_file in os.listdir(TORRENTS_DIR):
@@ -155,6 +188,9 @@ def find_matching_torrent(torrent_hash_v1: str, torrent_hash_v2: str) -> tuple[s
 
 
 def extract_season_episode(name: str) -> tuple[int, int]:
+    """
+    Helper function to find regex matches for season/episode numbers from the torrent name
+    """
     match = SEASON_EPISODE_REGEX.search(name)
     if not match:
         return None, None
@@ -164,6 +200,9 @@ def extract_season_episode(name: str) -> tuple[int, int]:
 
 
 async def get_seeders_and_leechers(torrent_id: int) -> tuple[int, int]:
+    """
+    Fetch seeders and leechers from Redis database for a torrent
+    """
     redis_conn = redis.get_connection()
     now = int(time.time())
     cutoff = now - PEER_TIMEOUT

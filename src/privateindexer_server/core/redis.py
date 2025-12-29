@@ -7,6 +7,9 @@ _redis_connection: redis.Redis | None = None
 
 
 def get_connection() -> redis.Redis:
+    """
+    Creates and returns a Redis connection
+    """
     global _redis_connection
 
     if _redis_connection is None:
@@ -17,6 +20,9 @@ def get_connection() -> redis.Redis:
 
 
 async def close_connection():
+    """
+    Destroys Redis connection if active
+    """
     global _redis_connection
     if _redis_connection is not None:
         await _redis_connection.close()

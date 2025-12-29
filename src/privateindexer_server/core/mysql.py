@@ -69,12 +69,17 @@ TORRENTS_TABLE_SQL = """
 
 
 async def setup_database():
+    """
+    Setup tables and perform migrations
+    Creates a connection pool to MySQL database
+    """
     global _db_pool
     _db_pool = await aiomysql.create_pool(host=MYSQL_HOST, port=MYSQL_PORT, user=MYSQL_USER, password=MYSQL_PASSWORD, db=MYSQL_DB, autocommit=True)
     log.debug("[MYSQL] Connected to database")
 
-    tables = {"torrents": TORRENTS_TABLE_SQL, "users": USERS_TABLE_SQL,}
+    tables = {"torrents": TORRENTS_TABLE_SQL, "users": USERS_TABLE_SQL, }
 
+    # build all tables from DDLs
     async with _db_pool.acquire() as conn:
         async with conn.cursor() as cur:
             for table_name, create_sql in tables.items():
@@ -86,6 +91,9 @@ async def setup_database():
 
 
 async def disconnect_database():
+    """
+    Closes MySQL connection pool if active
+    """
     if _db_pool is not None:
         _db_pool.close()
         await _db_pool.wait_closed()
@@ -93,6 +101,9 @@ async def disconnect_database():
 
 
 async def _with_retry(fn, *args, **kwargs):
+    """
+    Retries failed MySQL queries up to MYSQL_MAX_RETY times
+    """
     for attempt in range(1, MYSQL_MAX_RETY + 1):
         try:
             return await fn(*args, **kwargs)
@@ -109,6 +120,10 @@ async def _with_retry(fn, *args, **kwargs):
 
 
 async def fetch_all(query: str, params: tuple = ()):
+    """
+    Execute a query to MySQL and fetch all rows
+    """
+
     async def _do():
         async with _db_pool.acquire() as conn:
             async with conn.cursor(aiomysql.DictCursor) as cur:
@@ -119,6 +134,10 @@ async def fetch_all(query: str, params: tuple = ()):
 
 
 async def fetch_one(query: str, params: tuple = ()):
+    """
+    Execute a query to MySQL and fetch a single row
+    """
+
     async def _do():
         async with _db_pool.acquire() as conn:
             async with conn.cursor(aiomysql.DictCursor) as cur:
@@ -129,6 +148,10 @@ async def fetch_one(query: str, params: tuple = ()):
 
 
 async def execute(query: str, params: tuple = (), include_row_id: bool = False, include_row_count: bool = False):
+    """
+    Execute a query to MySQL and optionally fetch the row ID and modified row count
+    """
+
     async def _do():
         async with _db_pool.acquire() as conn:
             async with conn.cursor() as cur:
