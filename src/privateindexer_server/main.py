@@ -32,8 +32,8 @@ async def lifespan(_: FastAPI):
 
     # start all periodic server tasks
     app_tasks = [
-        asyncio.create_task(database_check.periodic_database_check_task()),
         asyncio.create_task(stale_check.periodic_stale_check_task()),
+        asyncio.create_task(database_check.periodic_database_check_task()),
         asyncio.create_task(peer_timeout.periodic_peer_timeout_task()),
         asyncio.create_task(stats_update.periodic_stats_update_task()),
     ]
