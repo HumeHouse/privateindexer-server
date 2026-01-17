@@ -540,9 +540,9 @@ async def upload(user: User = Depends(api_key_required), category: int = Form(..
         raise HTTPException(status_code=400, detail="File must be torrent file")
 
     # save the data to a temporary file
-    torrent_download_path = os.path.join(tempfile.gettempdir(), torrent_file.filename)
-    with open(torrent_download_path, "wb") as f:
-        f.write(await torrent_file.read())
+    temporary_download_File = tempfile.NamedTemporaryFile()
+    temporary_download_File.write(await torrent_file.read())
+    torrent_download_path = temporary_download_File.name
 
     try:
         # get the infodata from the torrent file
