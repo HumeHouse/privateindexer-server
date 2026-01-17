@@ -320,6 +320,7 @@ async def torznab_api(user: User = Depends(api_key_required), t: str = Query(...
 
         # add the plain text query where clause
         if q is not None:
+            # here we try to normalize the query by transliterating the unicode
             normalized_q = f"%{utils.clean_text_filter(q)}%"
             where_clauses.append("t.normalized_name LIKE %s")
             where_params.append(normalized_q)
