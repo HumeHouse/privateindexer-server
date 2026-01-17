@@ -46,7 +46,6 @@ TORRENTS_TABLE_SQL = """
                          `tvdbid`           int                                     NULL,
                          `artist`           text COLLATE utf8mb4_general_ci         NULL,
                          `album`            text COLLATE utf8mb4_general_ci         NULL,
-                         `torrent_path`     text COLLATE utf8mb4_general_ci,
                          `size`             bigint                                  NOT NULL,
                          `category`         int                                     NOT NULL,
                          `hash_v1`          char(40) COLLATE utf8mb4_general_ci              DEFAULT NULL,
