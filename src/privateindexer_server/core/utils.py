@@ -6,6 +6,7 @@ from decimal import Decimal
 from urllib.parse import unquote_to_bytes
 
 import libtorrent as lt
+from unidecode import unidecode
 from fastapi import Request
 
 from privateindexer_server.core import mysql, redis
@@ -49,11 +50,16 @@ def get_torrent_file(hash_v2: str) -> str:
     return os.path.join(TORRENTS_DIR, f"{hash_v2}.torrent")
 
 
-def clean_text_filter(s: str) -> str:
+def clean_text_filter(text: str) -> str:
     """
-    Helper to remove invalid characters from text
+    Helper to transliterate or remove invalid characters from text
     """
-    return re.sub(r"[^a-z0-9]", "", s.lower().strip())
+    # transliterate
+    text = unidecode(text, replace_str="")
+    text = text.lower().strip()
+
+    # use a regex replacement to remove non-standard characters
+    return re.sub(r"[^a-z0-9]+", "", text)
 
 
 def extract_bt_param(raw_qs: bytes, key: str) -> bytes:
