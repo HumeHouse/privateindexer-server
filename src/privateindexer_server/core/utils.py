@@ -42,11 +42,11 @@ async def get_user_by_key(apikey: str) -> User | None:
     return User(row["id"], row["label"], apikey, row["downloaded"], row["uploaded"])
 
 
-def build_torrent_path(torrent_name: str) -> str:
+def get_torrent_file(hash_v2: str) -> str:
     """
-    Helper to combine torrents directory with torrent name and add torrent extension
+    Helper to concatenate torrents directory, torrent v2 hash, and torrent extension
     """
-    return os.path.join(TORRENTS_DIR, f"{torrent_name}.torrent")
+    return os.path.join(TORRENTS_DIR, f"{hash_v2}.torrent")
 
 
 def clean_text_filter(s: str) -> str:

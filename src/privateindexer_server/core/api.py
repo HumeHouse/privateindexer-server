@@ -479,22 +479,24 @@ async def grab(user: User = Depends(api_key_required), infohash: str = Query(...
     Called by a client to request a torrent file which matches the provided infohash
     """
     # search for the infohash in the database
-    torrent = await mysql.fetch_one("SELECT id, torrent_path FROM torrents WHERE hash_v2 = %s LIMIT 1", (infohash,))
+    torrent = await mysql.fetch_one("SELECT id, hash_v2 FROM torrents WHERE hash_v2 = %s LIMIT 1", (infohash,))
     if not torrent:
         log.debug(f"[GRAB] User '{user.user_label}' tried to grab invalid torrent with hash '{infohash}'")
         raise HTTPException(status_code=404, detail="Torrent not found")
 
+    hash_v2 = torrent["hash_v2"]
+
     # ensure the torrent file exists on disk
-    torrent_path = torrent["torrent_path"]
-    if not os.path.exists(torrent_path):
-        log.error(f"[GRAB] Torrent file missing for hash {infohash}")
+    torrent_file = utils.get_torrent_file(hash_v2)
+    if not os.path.exists(torrent_file):
+        log.critical(f"[GRAB] Torrent file missing for hash {infohash}")
         raise HTTPException(status_code=404, detail="Torrent file missing")
 
-    torrent_filename = os.path.basename(torrent_path)
+    torrent_filename = os.path.basename(torrent_file)
 
     # attempt to read the file
     try:
-        with open(torrent_path, "rb") as f:
+        with open(torrent_file, "rb") as f:
             raw = f.read()
 
         # add the tracking URL to the torrent info
@@ -596,7 +598,7 @@ async def upload(user: User = Depends(api_key_required), category: int = Form(..
         raise HTTPException(status_code=409, detail="Torrent with same hash exists, updated name in database")
 
     # move the temporary file to the permanent torrent storage directory
-    torrent_save_path = utils.build_torrent_path(torrent_name)
+    torrent_save_path = utils.get_torrent_file(hash_v2)
     shutil.move(torrent_download_path, torrent_save_path)
 
     # remove dangling temporary torrent file
@@ -605,11 +607,11 @@ async def upload(user: User = Depends(api_key_required), category: int = Form(..
 
     # add the final metadata to the database
     await mysql.execute("""
-                        INSERT INTO torrents (name, normalized_name, season, episode, imdbid, tmdbid, tvdbid, artist, album, torrent_path, size, category, hash_v1,
+                        INSERT INTO torrents (name, normalized_name, season, episode, imdbid, tmdbid, tvdbid, artist, album, size, category, hash_v1,
                                               hash_v2, hash_v2_trunc, files, added_on, added_by_user_id, last_seen)
-                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, NOW(), %s, NOW())
+                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, NOW(), %s, NOW())
                         """,
-                        (torrent_name, normalized_torrent_name, season_match, episode_match, imdbid, tmdbid, tvdbid, artist, album, torrent_save_path, size, category,
+                        (torrent_name, normalized_torrent_name, season_match, episode_match, imdbid, tmdbid, tvdbid, artist, album, size, category,
                          hash_v1, hash_v2, hash_v2_truncated, file_count, user_id))
 
     log.info(f"[UPLOAD] User '{user_label}' uploaded torrent '{torrent_name}'")
