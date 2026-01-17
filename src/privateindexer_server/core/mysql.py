@@ -78,9 +78,11 @@ async def setup_database():
 
     tables = {"torrents": TORRENTS_TABLE_SQL, "users": USERS_TABLE_SQL, }
 
-    # build all tables from DDLs
+    # perform database setup
     async with _db_pool.acquire() as conn:
-        async with conn.cursor() as cur:
+        async with conn.cursor(aiomysql.DictCursor) as cur:
+
+            # add missing tables
             for table_name, create_sql in tables.items():
                 await cur.execute("SHOW TABLES LIKE %s", (table_name,))
                 exists = await cur.fetchone()
