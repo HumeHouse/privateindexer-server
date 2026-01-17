@@ -168,25 +168,6 @@ def get_torrent_hashes(torrent_file: str) -> tuple[str, str]:
         return "", ""
 
 
-def find_matching_torrent(torrent_hash_v1: str, torrent_hash_v2: str) -> tuple[str | None, str]:
-    """
-    Attempt to search for a torrent file whose hashes match the specified parameters
-    """
-    found_match = None
-
-    for torrent_file in os.listdir(TORRENTS_DIR):
-
-        torrent_path = os.path.join(TORRENTS_DIR, torrent_file)
-        try:
-            hash_v1, hash_v2 = get_torrent_hashes(torrent_path)
-            if hash_v1 == torrent_hash_v1 or hash_v2 == torrent_hash_v2:
-                found_match = torrent_path
-                break
-        except Exception as e:
-            log.error(f"[TORRENT] Error comparing hash for '{torrent_path}' to '{torrent_hash_v1}' / '{torrent_hash_v2}': {e}")
-    return found_match, torrent_hash_v2
-
-
 def extract_season_episode(name: str) -> tuple[int, int]:
     """
     Helper function to find regex matches for season/episode numbers from the torrent name
