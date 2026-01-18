@@ -6,6 +6,7 @@ from decimal import Decimal
 from urllib.parse import unquote_to_bytes
 
 import libtorrent as lt
+from unidecode import unidecode
 from fastapi import Request
 
 from privateindexer_server.core import mysql, redis
@@ -42,18 +43,23 @@ async def get_user_by_key(apikey: str) -> User | None:
     return User(row["id"], row["label"], apikey, row["downloaded"], row["uploaded"])
 
 
-def build_torrent_path(torrent_name: str) -> str:
+def get_torrent_file(hash_v2: str) -> str:
     """
-    Helper to combine torrents directory with torrent name and add torrent extension
+    Helper to concatenate torrents directory, torrent v2 hash, and torrent extension
     """
-    return os.path.join(TORRENTS_DIR, f"{torrent_name}.torrent")
+    return os.path.join(TORRENTS_DIR, f"{hash_v2}.torrent")
 
 
-def clean_text_filter(s: str) -> str:
+def clean_text_filter(text: str) -> str:
     """
-    Helper to remove invalid characters from text
+    Helper to transliterate or remove invalid characters from text
     """
-    return re.sub(r"[^a-z0-9]", "", s.lower().strip())
+    # transliterate
+    text = unidecode(text, replace_str="")
+    text = text.lower().strip()
+
+    # use a regex replacement to remove non-standard characters
+    return re.sub(r"[^a-z0-9]+", "", text)
 
 
 def extract_bt_param(raw_qs: bytes, key: str) -> bytes:
@@ -166,25 +172,6 @@ def get_torrent_hashes(torrent_file: str) -> tuple[str, str]:
     except Exception as e:
         log.error(f"[TORRENT] Error getting hashes for '{torrent_file}': {e}")
         return "", ""
-
-
-def find_matching_torrent(torrent_hash_v1: str, torrent_hash_v2: str) -> tuple[str | None, str]:
-    """
-    Attempt to search for a torrent file whose hashes match the specified parameters
-    """
-    found_match = None
-
-    for torrent_file in os.listdir(TORRENTS_DIR):
-
-        torrent_path = os.path.join(TORRENTS_DIR, torrent_file)
-        try:
-            hash_v1, hash_v2 = get_torrent_hashes(torrent_path)
-            if hash_v1 == torrent_hash_v1 or hash_v2 == torrent_hash_v2:
-                found_match = torrent_path
-                break
-        except Exception as e:
-            log.error(f"[TORRENT] Error comparing hash for '{torrent_path}' to '{torrent_hash_v1}' / '{torrent_hash_v2}': {e}")
-    return found_match, torrent_hash_v2
 
 
 def extract_season_episode(name: str) -> tuple[int, int]:

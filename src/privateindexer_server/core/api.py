@@ -320,6 +320,7 @@ async def torznab_api(user: User = Depends(api_key_required), t: str = Query(...
 
         # add the plain text query where clause
         if q is not None:
+            # here we try to normalize the query by transliterating the unicode
             normalized_q = f"%{utils.clean_text_filter(q)}%"
             where_clauses.append("t.normalized_name LIKE %s")
             where_params.append(normalized_q)
@@ -479,22 +480,24 @@ async def grab(user: User = Depends(api_key_required), infohash: str = Query(...
     Called by a client to request a torrent file which matches the provided infohash
     """
     # search for the infohash in the database
-    torrent = await mysql.fetch_one("SELECT id, torrent_path FROM torrents WHERE hash_v2 = %s LIMIT 1", (infohash,))
+    torrent = await mysql.fetch_one("SELECT id, hash_v2 FROM torrents WHERE hash_v2 = %s LIMIT 1", (infohash,))
     if not torrent:
         log.debug(f"[GRAB] User '{user.user_label}' tried to grab invalid torrent with hash '{infohash}'")
         raise HTTPException(status_code=404, detail="Torrent not found")
 
+    hash_v2 = torrent["hash_v2"]
+
     # ensure the torrent file exists on disk
-    torrent_path = torrent["torrent_path"]
-    if not os.path.exists(torrent_path):
-        log.error(f"[GRAB] Torrent file missing for hash {infohash}")
+    torrent_file = utils.get_torrent_file(hash_v2)
+    if not os.path.exists(torrent_file):
+        log.critical(f"[GRAB] Torrent file missing for hash {infohash}")
         raise HTTPException(status_code=404, detail="Torrent file missing")
 
-    torrent_filename = os.path.basename(torrent_path)
+    torrent_filename = os.path.basename(torrent_file)
 
     # attempt to read the file
     try:
-        with open(torrent_path, "rb") as f:
+        with open(torrent_file, "rb") as f:
             raw = f.read()
 
         # add the tracking URL to the torrent info
@@ -531,16 +534,18 @@ async def upload(user: User = Depends(api_key_required), category: int = Form(..
     # ensure the client is using a valid torznab category
     category_id_list = [cat["id"] for cat in CATEGORIES]
     if category not in category_id_list:
+        log.warning(f"[UPLOAD] User '{user_label}' tried to upload with invalid category: {category}")
         raise HTTPException(status_code=400, detail="Invalid category")
 
     # make sure this is actually a torrent file
     if not torrent_file.filename.endswith(".torrent"):
+        log.warning(f"[UPLOAD] User '{user_label}' tried to upload non-torrent file: {torrent_file.filename}")
         raise HTTPException(status_code=400, detail="File must be torrent file")
 
     # save the data to a temporary file
-    torrent_download_path = os.path.join(tempfile.gettempdir(), torrent_file.filename)
-    with open(torrent_download_path, "wb") as f:
-        f.write(await torrent_file.read())
+    temporary_download_File = tempfile.NamedTemporaryFile()
+    temporary_download_File.write(await torrent_file.read())
+    torrent_download_path = temporary_download_File.name
 
     try:
         # get the infodata from the torrent file
@@ -594,7 +599,7 @@ async def upload(user: User = Depends(api_key_required), category: int = Form(..
         raise HTTPException(status_code=409, detail="Torrent with same hash exists, updated name in database")
 
     # move the temporary file to the permanent torrent storage directory
-    torrent_save_path = utils.build_torrent_path(torrent_name)
+    torrent_save_path = utils.get_torrent_file(hash_v2)
     shutil.move(torrent_download_path, torrent_save_path)
 
     # remove dangling temporary torrent file
@@ -603,11 +608,11 @@ async def upload(user: User = Depends(api_key_required), category: int = Form(..
 
     # add the final metadata to the database
     await mysql.execute("""
-                        INSERT INTO torrents (name, normalized_name, season, episode, imdbid, tmdbid, tvdbid, artist, album, torrent_path, size, category, hash_v1,
+                        INSERT INTO torrents (name, normalized_name, season, episode, imdbid, tmdbid, tvdbid, artist, album, size, category, hash_v1,
                                               hash_v2, hash_v2_trunc, files, added_on, added_by_user_id, last_seen)
-                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, NOW(), %s, NOW())
+                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, NOW(), %s, NOW())
                         """,
-                        (torrent_name, normalized_torrent_name, season_match, episode_match, imdbid, tmdbid, tvdbid, artist, album, torrent_save_path, size, category,
+                        (torrent_name, normalized_torrent_name, season_match, episode_match, imdbid, tmdbid, tvdbid, artist, album, size, category,
                          hash_v1, hash_v2, hash_v2_truncated, file_count, user_id))
 
     log.info(f"[UPLOAD] User '{user_label}' uploaded torrent '{torrent_name}'")
