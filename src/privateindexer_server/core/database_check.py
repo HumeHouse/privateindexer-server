@@ -2,8 +2,8 @@ import asyncio
 import datetime
 import os
 
-from privateindexer_server.core import mysql, utils, thread_executor
-from privateindexer_server.core.config import DATABASE_CHECK_INTERVAL
+from privateindexer_server.core import mysql, utils
+from privateindexer_server.core.config import DATABASE_CHECK_INTERVAL, TORRENTS_DIR
 from privateindexer_server.core.logger import log
 
 
@@ -11,54 +11,37 @@ async def check_torrent_database():
     """
     Checks the torrent database torrent file paths for existence or tries to locate a matching file on disk
     """
-    updated_torrents = 0
     removed_torrents = 0
 
-    loop = asyncio.get_running_loop()
-    futures = []
-
-    # open a hash executor for calculating torrent hashes
-    hash_executor = thread_executor.get_hash_executor()
-
-    # fetch all the torrents and loop through each
-    torrents = await mysql.fetch_all("SELECT * FROM torrents")
-    for torrent in torrents:
-        torrent_path = torrent.get("torrent_path")
-
-        # skip the torrent if the stored file path already exists
-        if torrent_path and os.path.exists(torrent_path):
-            continue
-
-        # try to find a matching torrent if the file we're tracking is on disk
-        future = loop.run_in_executor(hash_executor, utils.find_matching_torrent, torrent["hash_v1"], torrent["hash_v2"])
-        futures.append(future)
-
+    # fetch all the torrents
+    torrents = await mysql.fetch_all("SELECT id, hash_v2 FROM torrents")
+    all_v2_hashes = {torrent["hash_v2"] for torrent in torrents}
     total_torrents = len(torrents)
 
-    async for future in asyncio.as_completed(futures):
-        try:
-            matching_torrent, hash_v2 = await future
-            # if we found a match, update the database with the new torrent path
-            if matching_torrent:
-                await mysql.execute("UPDATE torrents SET torrent_path = %s WHERE hash_v2 = %s", (matching_torrent, hash_v2))
+    # loop through each torrent
+    for torrent in torrents:
+        torrent_file = utils.get_torrent_file(torrent["hash_v2"])
 
-                updated_torrents += 1
-                log.debug(f"[DB-CHECK] Matching torrent found for hash: {hash_v2}")
+        # skip if the torrent file already exists
+        if os.path.exists(torrent_file):
+            continue
 
-            # if no matching file was found, purge the torrent entry from the database
-            else:
-                await mysql.execute("DELETE FROM torrents WHERE hash_v2 = %s", (hash_v2,))
+        # purge the torrent if the file doesn't exist
+        await mysql.execute("DELETE FROM torrents WHERE id = %s", (torrent["id"],))
 
-                removed_torrents += 1
-                log.warning(f"[DB-CHECK] Purged torrent due to no match for hash: {hash_v2}")
-        except Exception as e:
-            log.error(f"[DB-CHECK] Error in torrent post-hash-check: {e}")
+        removed_torrents += 1
+        log.warning(f"[DB-CHECK] Purged torrent due to missing torrent file for hash: {torrent["hash_v2"]}")
 
-    # close the hash executor process pool
-    hash_executor.shutdown()
-    log.debug(f"[DB-CHECK] Hash executor workers closed")
+    # loop through all the files in the torrents directory
+    for filename in os.listdir(TORRENTS_DIR):
+        hash_v2 = os.path.splitext(filename)[0]
 
-    return total_torrents, updated_torrents, removed_torrents
+        # check the name of the file against the database - should match v2 hash
+        if hash_v2 not in all_v2_hashes:
+            log.warning(f"[DB-CHECK] Purged torrent file due to not tracked by database: {filename}")
+            os.unlink(os.path.join(TORRENTS_DIR, filename))
+
+    return total_torrents, removed_torrents
 
 
 async def periodic_database_check_task():
@@ -71,11 +54,10 @@ async def periodic_database_check_task():
             log.info("[DB-CHECK] Running torrent database check")
             before = datetime.datetime.now()
 
-            total_torrents, updated_torrents, removed_torrents = await check_torrent_database()
+            total_torrents, removed_torrents = await check_torrent_database()
 
             delta = datetime.datetime.now() - before
-            log.info(f"[DB-CHECK] Torrent database check complete ({delta}): "
-                     f"total {total_torrents} torrents, {updated_torrents} updated, {removed_torrents} removed")
+            log.info(f"[DB-CHECK] Torrent database check complete ({delta}): {total_torrents} torrents, {removed_torrents} removed")
         except Exception as e:
             log.error(f"[DB-CHECK] Error during periodic database check: {e}")
         await asyncio.sleep(DATABASE_CHECK_INTERVAL)

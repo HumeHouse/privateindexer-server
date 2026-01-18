@@ -46,7 +46,6 @@ TORRENTS_TABLE_SQL = """
                          `tvdbid`           int                                     NULL,
                          `artist`           text COLLATE utf8mb4_general_ci         NULL,
                          `album`            text COLLATE utf8mb4_general_ci         NULL,
-                         `torrent_path`     text COLLATE utf8mb4_general_ci,
                          `size`             bigint                                  NOT NULL,
                          `category`         int                                     NOT NULL,
                          `hash_v1`          char(40) COLLATE utf8mb4_general_ci              DEFAULT NULL,
@@ -79,9 +78,11 @@ async def setup_database():
 
     tables = {"torrents": TORRENTS_TABLE_SQL, "users": USERS_TABLE_SQL, }
 
-    # build all tables from DDLs
+    # perform database setup
     async with _db_pool.acquire() as conn:
-        async with conn.cursor() as cur:
+        async with conn.cursor(aiomysql.DictCursor) as cur:
+
+            # add missing tables
             for table_name, create_sql in tables.items():
                 await cur.execute("SHOW TABLES LIKE %s", (table_name,))
                 exists = await cur.fetchone()
