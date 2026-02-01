@@ -263,8 +263,9 @@ async def torznab_api(user: User = Depends(api_key_required), t: str = Query(...
             where_clauses.append(f"t.added_by_user_id != %s")
             where_params.append(user.user_id)
 
-        # generate an access token to be inserted into returned URLs
-        access_token = jwt_helper.create_access_token(user.user_id)
+        # generate access token to be inserted into returned torrent view and grab URLs
+        view_access_token = jwt_helper.create_access_token(user.user_id, "view")
+        grab_access_token = jwt_helper.create_access_token(user.user_id, "grab")
 
         # if no query is specified in a regular search, assume an RSS query is being made
         if t == "search" and (not q or q.strip() == ""):
@@ -295,15 +296,16 @@ async def torznab_api(user: User = Depends(api_key_required), t: str = Query(...
                     seeders = leechers = 0
                     log.error(f"[TORZNAB] Failed to fetch seeders/leechers from Redis: {e}")
 
-                # feed the client URLs with the torrent hash and their API key added to the end
-                torrent_url_with_token = f"{EXTERNAL_SERVER_URL}/grab?infohash={torrent_result['hash_v2']}&at={access_token}"
-                torrent_link_with_token = f"{EXTERNAL_SERVER_URL}/view/{torrent_result["id"]}?at={access_token}"
+                # feed the client URLs with the torrent hash and an access token
+                grab_link = f"{EXTERNAL_SERVER_URL}/grab?infohash={torrent_result['hash_v2']}&at={grab_access_token}"
+                view_link = f"{EXTERNAL_SERVER_URL}/view/{torrent_result["id"]}?at={view_access_token}"
                 items.append(f"""
                     <item>
                         <title>{escape(torrent_result["name"])}</title>
                         <guid isPermaLink="false">humehouse-{torrent_result['hash_v2']}</guid>
-                        <comments>{escape(torrent_link_with_token)}</comments>
-                        <enclosure url="{escape(torrent_url_with_token)}" length="{torrent_result["size"]}" type="application/x-bittorrent"/>
+                        <link>{escape(grab_link)}</link>
+                        <comments>{escape(view_link)}</comments>
+                        <enclosure url="{escape(grab_link)}" length="{torrent_result["size"]}" type="application/x-bittorrent"/>
                         <size>{torrent_result["size"]}</size>
                         <pubDate>{torrent_result["added_on"].strftime("%a, %d %b %Y %H:%M:%S GMT")}</pubDate>
                         <category>{torrent_result["category"]}</category>
@@ -446,16 +448,16 @@ async def torznab_api(user: User = Depends(api_key_required), t: str = Query(...
                 seeders = leechers = 0
                 log.error(f"[TORZNAB] Failed to fetch seeders/leechers from Redis: {e}")
 
-            # feed the client URLs with the torrent hash and their API key added to the end
-            torrent_url_with_token = f"{EXTERNAL_SERVER_URL}/grab?infohash={torrent_result['hash_v2']}&at={access_token}"
-            torrent_link_with_token = f"{EXTERNAL_SERVER_URL}/view/{torrent_result["id"]}?at={access_token}"
+            # feed the client URLs with the torrent hash and an access token
+            grab_link = f"{EXTERNAL_SERVER_URL}/grab?infohash={torrent_result['hash_v2']}&at={grab_access_token}"
+            view_link = f"{EXTERNAL_SERVER_URL}/view/{torrent_result["id"]}?at={view_access_token}"
             item = f"""
             <item>
                 <title>{escape(torrent_result["name"])}</title>
                 <guid isPermaLink="false">humehouse-{torrent_result['hash_v2']}</guid>
-                <link>{escape(torrent_url_with_token)}</link>
-                <comments>{escape(torrent_link_with_token)}</comments>
-                <enclosure url="{escape(torrent_url_with_token)}" length="{torrent_result["size"]}" type="application/x-bittorrent"/>
+                <link>{escape(grab_link)}</link>
+                <comments>{escape(view_link)}</comments>
+                <enclosure url="{escape(grab_link)}" length="{torrent_result["size"]}" type="application/x-bittorrent"/>
                 <size>{torrent_result["size"]}</size>
                 <pubDate>{torrent_result["added_on"].strftime("%a, %d %b %Y %H:%M:%S GMT")}</pubDate>
                 <category>{torrent_result["category"]}</category>
