@@ -14,6 +14,7 @@ from fastapi.responses import Response, PlainTextResponse, JSONResponse
 
 from privateindexer_server.core import mysql, utils, redis, user_helper, jwt_helper
 from privateindexer_server.core.config import CATEGORIES, ANNOUNCE_TRACKER_URL, SYNC_BATCH_SIZE, EXTERNAL_SERVER_URL
+from privateindexer_server.core.jwt_helper import AccessTokenValidator
 from privateindexer_server.core.logger import log
 from privateindexer_server.core.user_helper import User
 
@@ -34,26 +35,6 @@ async def api_key_required(api_key_query: str | None = Query(None, alias="apikey
     if not user:
         log.warning(f"[USER] Invalid API key sent: {api_key}")
         raise HTTPException(status_code=401, detail="Invalid API key")
-    return user
-
-
-async def access_token_required(access_token: str | None = Query(None, alias="at"), ) -> User:
-    """
-    FastAPI depenedency to validate JWT access token and return user data from database
-    """
-    if not access_token:
-        raise HTTPException(status_code=401, detail="Access token missing")
-
-    user_id = jwt_helper.validate_access_token(access_token)
-
-    if user_id == -1:
-        log.warning(f"[USER] Invalid or expired access token used: {access_token}")
-        raise HTTPException(status_code=401, detail="Invalid or expired access token")
-
-    user = await user_helper.get_user(user_id=user_id)
-    if not user:
-        log.warning(f"[USER] Invalid user ID: {user_id}")
-        raise HTTPException(status_code=401, detail="Invalid or expired access token")
     return user
 
 
@@ -500,7 +481,7 @@ async def torznab_api(user: User = Depends(api_key_required), t: str = Query(...
 
 
 @router.get("/grab")
-async def grab(user: User = Depends(access_token_required), infohash: str = Query(...), nograb: bool = Query(False)):
+async def grab(user: User = Depends(AccessTokenValidator("grab")), infohash: str = Query(...)):
     """
     Called by a client to request a torrent file which matches the provided infohash
     """
@@ -537,11 +518,10 @@ async def grab(user: User = Depends(access_token_required), infohash: str = Quer
         log.error(f"[GRAB] Failed to add tracker to torrent with hash '{infohash}: {e}")
         raise HTTPException(status_code=500, detail="Internal server error")
 
-    # only increment the grab counter and log it if query param was not set
-    if not nograb:
-        await mysql.execute("UPDATE torrents SET grabs = grabs + 1 WHERE id=%s", (torrent["id"],))
+    # increment the grab counter
+    await mysql.execute("UPDATE torrents SET grabs = grabs + 1 WHERE id=%s", (torrent["id"],))
 
-        log.info(f"[GRAB] User '{user.user_label}' grabbed torrent by hash '{infohash}'")
+    log.info(f"[GRAB] User '{user.user_label}' grabbed torrent by hash '{infohash}'")
 
     # reply with the bencoded response over x-bittorrent protocol
     return Response(content=bencoded, media_type="application/x-bittorrent", headers={"Content-Disposition": f'attachment; filename="{torrent_filename}"'})

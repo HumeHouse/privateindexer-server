@@ -4,17 +4,45 @@ import uuid
 from datetime import datetime, timezone, timedelta
 
 import jwt
+from fastapi import Query, HTTPException
 
+from privateindexer_server.core import user_helper
 from privateindexer_server.core.config import ACCESS_TOKEN_EXPIRATION, JWT_KEY_FILE
 from privateindexer_server.core.logger import log
+from privateindexer_server.core.user_helper import User
 
 JWT_OPTIONS = {
-    "require": ["exp", "sub", "aud"],
-    "verify_aud": True,
-    "strict_aud": True,
-    "verify_exp": True
+    "require": ["exp", "sub", "for", "aud"]
 }
 _jwt_key = None
+
+
+class AccessTokenValidator:
+    def __init__(self, purpose: str):
+        """
+        Initialize class with static purpose property
+        """
+        self.purpose = purpose
+
+    async def __call__(self, access_token: str | None = Query(None, alias="at")) -> User:
+        """
+        Makes this class callable to be used as a dynamic FastAPI dependency
+        """
+        if not access_token:
+            raise HTTPException(status_code=401, detail="Access token missing")
+
+        # validate the token and check against the static purpose property
+        user_id = validate_access_token(access_token, self.purpose)
+
+        if user_id == -1:
+            log.warning(f"[USER] Invalid or expired access token used: {access_token}")
+            raise HTTPException(status_code=401, detail="Invalid or expired access token")
+
+        user = await user_helper.get_user(user_id=user_id)
+        if not user:
+            log.warning(f"[USER] Invalid user ID: {user_id}")
+            raise HTTPException(status_code=401, detail="Invalid or expired access token")
+        return user
 
 
 def get_jwt_key() -> str:
@@ -48,21 +76,21 @@ def get_jwt_key() -> str:
     return _jwt_key
 
 
-def create_access_token(user_id: int) -> str:
+def create_access_token(user_id: int, purpose: str) -> str:
     """
     Creates a JWT access token using the user ID and purpose
     """
     payload = {
         "sub": (base64.b64encode(str(user_id).encode())).decode(),
         "exp": datetime.now(timezone.utc) + timedelta(minutes=ACCESS_TOKEN_EXPIRATION),
-        "for": "privateindexer",
+        "for": purpose,
         "aud": "acc",
         "jti": str(uuid.uuid4())
     }
     return jwt.encode(payload, get_jwt_key())
 
 
-def validate_access_token(access_token: str) -> int:
+def validate_access_token(access_token: str, purpose: str) -> int:
     """
     Helper to validate and decode JWT access token payload, returning user ID
     """
@@ -70,6 +98,10 @@ def validate_access_token(access_token: str) -> int:
         return -1
     try:
         payload = jwt.decode(access_token, get_jwt_key(), options=JWT_OPTIONS, audience="acc", algorithms=["HS256"])
+
+        # make sure purpose of token matches the request
+        if payload.get("for") != purpose:
+            return -1
 
         decoded = base64.decodebytes(payload.get("sub").encode())
         return decoded.decode()
