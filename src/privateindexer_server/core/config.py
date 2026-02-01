@@ -24,6 +24,16 @@ STALE_THRESHOLD = 60 * 60 * 24 * int(os.getenv("STALE_THRESHOLD", 30))
 
 SYNC_BATCH_SIZE = int(os.getenv("SYNC_BATCH_SIZE", 5000))
 
+ACCESS_TOKEN_EXPIRATION = int(os.getenv("ACCESS_TOKEN_EXPIRATION", 10))
+
+JWT_KEY = os.getenv("JWT_KEY")
+JWT_OPTIONS = {
+    "require": ["exp", "sub", "aud"],
+    "verify_aud": True,
+    "strict_aud": True,
+    "verify_exp": True
+}
+
 REDIS_HOST = os.getenv("REDIS_HOST")
 
 MYSQL_HOST = os.getenv("MYSQL_HOST")
