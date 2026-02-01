@@ -10,6 +10,7 @@ services:
     environment:
       REDIS_HOST: privateindexer-redis
       MYSQL_HOST: privateindexer-mysql
+      MYSQL_ROOT_PASSWORD: privateindexer
       EXTERNAL_SERVER_URL: https://indexer.humehouse.com
       EXTERNAL_TRACKER_URL: https://tracker.humehouse.com
     volumes:
@@ -54,9 +55,7 @@ services:
       --innodb-undo-log-truncate=ON
       --innodb-max-undo-log-size=128M
     environment:
-      MYSQL_USER: privateindexer
-      MYSQL_PASSWORD: privateindexer
-      MYSQL_DATABASE: privateindexer
+      MYSQL_ROOT_PASSWORD: privateindexer
     volumes:
       - /humehouse/privateindexer/server/mysql:/var/lib/mysql
     restart: unless-stopped
