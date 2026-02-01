@@ -527,6 +527,23 @@ async def grab(user: User = Depends(AccessTokenValidator("grab")), infohash: str
     return Response(content=bencoded, media_type="application/x-bittorrent", headers={"Content-Disposition": f'attachment; filename="{torrent_filename}"'})
 
 
+@router.get("/validate")
+async def validate(user: User = Depends(api_key_required), infohash: str = Query(...)):
+    """
+    Called by a client to validate if an infohash exists on the server
+    """
+    # search for the infohash in the database
+    torrent = await mysql.fetch_one("SELECT id FROM torrents WHERE hash_v2 = %s LIMIT 1", (infohash,))
+    if not torrent:
+        log.debug(f"[VALIDATE] User '{user.user_label}' tried to validate torrent with invalid hash '{infohash}'")
+        raise HTTPException(status_code=404, detail="Torrent not found")
+
+    log.info(f"[VALIDATE] User '{user.user_label}' successfully validated torrent by hash '{infohash}'")
+
+    # reply with success message
+    return PlainTextResponse("Torrent is valid")
+
+
 @router.post("/upload")
 async def upload(user: User = Depends(api_key_required), category: int = Form(...), torrent_file: UploadFile = File(...), torrent_name: str = Form(...),
                  imdbid: str = Form(None), tmdbid: int = Form(None), tvdbid: int = Form(None), artist: str = Form(None), album: str = Form(None)):
