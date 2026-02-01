@@ -12,8 +12,8 @@ import libtorrent as lt
 from fastapi import HTTPException, Query, Request, UploadFile, File, Form, APIRouter, Depends, Header
 from fastapi.responses import Response, PlainTextResponse, JSONResponse
 
-from privateindexer_server.core.config import CATEGORIES, ANNOUNCE_TRACKER_URL, SYNC_BATCH_SIZE
 from privateindexer_server.core import mysql, utils, redis, user_helper, jwt_helper
+from privateindexer_server.core.config import CATEGORIES, ANNOUNCE_TRACKER_URL, SYNC_BATCH_SIZE, EXTERNAL_SERVER_URL
 from privateindexer_server.core.logger import log
 from privateindexer_server.core.user_helper import User
 
@@ -296,8 +296,8 @@ async def torznab_api(user: User = Depends(api_key_required), t: str = Query(...
                     log.error(f"[TORZNAB] Failed to fetch seeders/leechers from Redis: {e}")
 
                 # feed the client URLs with the torrent hash and their API key added to the end
-                torrent_url_with_token = f"https://indexer.humehouse.com/grab?infohash={torrent_result['hash_v2']}&at={access_token}"
-                torrent_link_with_token = f"https://indexer.humehouse.com/view/{torrent_result["id"]}?at={access_token}"
+                torrent_url_with_token = f"{EXTERNAL_SERVER_URL}/grab?infohash={torrent_result['hash_v2']}&at={access_token}"
+                torrent_link_with_token = f"{EXTERNAL_SERVER_URL}/view/{torrent_result["id"]}?at={access_token}"
                 items.append(f"""
                     <item>
                         <title>{escape(torrent_result["name"])}</title>
@@ -447,8 +447,8 @@ async def torznab_api(user: User = Depends(api_key_required), t: str = Query(...
                 log.error(f"[TORZNAB] Failed to fetch seeders/leechers from Redis: {e}")
 
             # feed the client URLs with the torrent hash and their API key added to the end
-            torrent_url_with_token = f"https://indexer.humehouse.com/grab?infohash={torrent_result['hash_v2']}&at={access_token}"
-            torrent_link_with_token = f"https://indexer.humehouse.com/view/{torrent_result["id"]}?at={access_token}"
+            torrent_url_with_token = f"{EXTERNAL_SERVER_URL}/grab?infohash={torrent_result['hash_v2']}&at={access_token}"
+            torrent_link_with_token = f"{EXTERNAL_SERVER_URL}/view/{torrent_result["id"]}?at={access_token}"
             item = f"""
             <item>
                 <title>{escape(torrent_result["name"])}</title>
@@ -483,7 +483,7 @@ async def torznab_api(user: User = Depends(api_key_required), t: str = Query(...
                 <channel>
                     <title>HumeHouse PrivateIndexer</title>
                     <description>For friends of David</description>
-                    <link>https://indexer.humehouse.com/api</link>
+                    <link>{EXTERNAL_SERVER_URL}/api</link>
                     <torznab:response offset="{offset}" total="{total_matches}"/>
                     {"".join(items)}
                 </channel>

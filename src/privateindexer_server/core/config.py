@@ -10,7 +10,10 @@ JWT_KEY_FILE = os.path.join(DATA_DIR, "jwt.key")
 
 CATEGORIES = [{"id": 2000, "name": "Movies"}, {"id": 5000, "name": "TV"}, {"id": 3000, "name": "Audio"}]
 
-ANNOUNCE_TRACKER_URL = "https://tracker.humehouse.com/announce"
+EXTERNAL_TRACKER_URL = (os.getenv("EXTERNAL_TRACKER_URL")).strip("/")
+ANNOUNCE_TRACKER_URL = f"{EXTERNAL_TRACKER_URL}/announce"
+
+EXTERNAL_SERVER_URL = (os.getenv("EXTERNAL_SERVER_URL")).strip("/")
 
 PEER_TIMEOUT_INTERVAL = 60 * int(os.getenv("PEER_TIMEOUT_INTERVAL", 1))
 PEER_TIMEOUT = int(os.getenv("PEER_TIMEOUT", 1800))
