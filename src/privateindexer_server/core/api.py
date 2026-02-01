@@ -12,10 +12,10 @@ import libtorrent as lt
 from fastapi import HTTPException, Query, Request, UploadFile, File, Form, APIRouter, Depends, Header
 from fastapi.responses import Response, PlainTextResponse, JSONResponse
 
-from privateindexer_server.core import mysql, utils, redis
+from privateindexer_server.core import mysql, utils, redis, user_helper
 from privateindexer_server.core.config import CATEGORIES, ANNOUNCE_TRACKER_URL, SYNC_BATCH_SIZE
 from privateindexer_server.core.logger import log
-from privateindexer_server.core.utils import User
+from privateindexer_server.core.user_helper import User
 
 router = APIRouter()
 
@@ -30,7 +30,7 @@ async def api_key_required(api_key_query: str | None = Query(None, alias="apikey
     if not api_key:
         raise HTTPException(status_code=401, detail="API key missing")
 
-    user = await utils.get_user(api_key=api_key)
+    user = await user_helper.get_user(api_key=api_key)
     if not user:
         log.warning(f"[USER] Invalid API key sent: {api_key}")
         raise HTTPException(status_code=401, detail="Invalid API key")
@@ -50,7 +50,7 @@ async def access_token_required(access_token: str | None = Query(None, alias="at
         log.warning(f"[USER] Invalid or expired access token used: {access_token}")
         raise HTTPException(status_code=401, detail="Invalid or expired access token")
 
-    user = await utils.get_user(user_id=user_id)
+    user = await user_helper.get_user(user_id=user_id)
     if not user:
         log.warning(f"[USER] Invalid user ID: {user_id}")
         raise HTTPException(status_code=401, detail="Invalid or expired access token")
@@ -288,7 +288,7 @@ async def torznab_api(user: User = Depends(api_key_required), t: str = Query(...
             for torrent_result in results:
                 torrent_id = torrent_result["id"]
 
-                # attempt to fetch the seede and leech count from Redis to enrich the RSS response
+                # attempt to fetch the seed and leech count from Redis to enrich the RSS response
                 try:
                     seeders, leechers = await utils.get_seeders_and_leechers(torrent_id)
                 except Exception as e:

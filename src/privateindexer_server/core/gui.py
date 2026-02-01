@@ -5,7 +5,7 @@ from fastapi.templating import Jinja2Templates
 from privateindexer_server.core import mysql, utils
 from privateindexer_server.core.api import access_token_required
 from privateindexer_server.core.logger import log
-from privateindexer_server.core.utils import User
+from privateindexer_server.core.user_helper import User
 
 router = APIRouter()
 templates = Jinja2Templates(directory="/app/src/templates")
