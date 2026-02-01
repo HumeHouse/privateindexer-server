@@ -12,8 +12,8 @@ import libtorrent as lt
 from fastapi import HTTPException, Query, Request, UploadFile, File, Form, APIRouter, Depends, Header
 from fastapi.responses import Response, PlainTextResponse, JSONResponse
 
-from privateindexer_server.core import mysql, utils, redis, user_helper
 from privateindexer_server.core.config import CATEGORIES, ANNOUNCE_TRACKER_URL, SYNC_BATCH_SIZE
+from privateindexer_server.core import mysql, utils, redis, user_helper, jwt_helper
 from privateindexer_server.core.logger import log
 from privateindexer_server.core.user_helper import User
 
@@ -44,7 +44,7 @@ async def access_token_required(access_token: str | None = Query(None, alias="at
     if not access_token:
         raise HTTPException(status_code=401, detail="Access token missing")
 
-    user_id = utils.validate_access_token(access_token)
+    user_id = jwt_helper.validate_access_token(access_token)
 
     if user_id == -1:
         log.warning(f"[USER] Invalid or expired access token used: {access_token}")
@@ -264,7 +264,7 @@ async def torznab_api(user: User = Depends(api_key_required), t: str = Query(...
             where_params.append(user.user_id)
 
         # generate an access token to be inserted into returned URLs
-        access_token = utils.create_access_token(user.user_id)
+        access_token = jwt_helper.create_access_token(user.user_id)
 
         # if no query is specified in a regular search, assume an RSS query is being made
         if t == "search" and (not q or q.strip() == ""):

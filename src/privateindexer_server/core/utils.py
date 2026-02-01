@@ -1,52 +1,19 @@
-import base64
 import os
 import re
 import time
-import uuid
-from datetime import datetime, timezone, timedelta
+from datetime import datetime, timezone
 from decimal import Decimal
 from urllib.parse import unquote_to_bytes
 
-import jwt
 import libtorrent as lt
 from unidecode import unidecode
 from fastapi import Request
 
 from privateindexer_server.core import redis
-from privateindexer_server.core.config import TORRENTS_DIR, CATEGORIES, PEER_TIMEOUT, JWT_KEY, ACCESS_TOKEN_EXPIRATION, JWT_OPTIONS
+from privateindexer_server.core.config import TORRENTS_DIR, CATEGORIES, PEER_TIMEOUT
 from privateindexer_server.core.logger import log
 
 SEASON_EPISODE_REGEX = re.compile(r"S(?P<season>\d{1,4})(?:E(?P<episode>\d{1,3}))?|(?P<season_alt>\d{1,4})x(?P<episode_alt>\d{1,3})", re.IGNORECASE, )
-
-
-def create_access_token(user_id: int) -> str:
-    """
-    Creates a JWT access token using the user ID and purpose
-    """
-    payload = {
-        "sub": (base64.b64encode(str(user_id).encode())).decode(),
-        "exp": datetime.now(timezone.utc) + timedelta(minutes=ACCESS_TOKEN_EXPIRATION),
-        "for": "privateindexer",
-        "aud": "acc",
-        "jti": str(uuid.uuid4())
-    }
-    return jwt.encode(payload, JWT_KEY)
-
-
-def validate_access_token(access_token: str) -> int:
-    """
-    Helper to validate and decode JWT access token payload, returning user ID
-    """
-    if access_token is None:
-        return -1
-    try:
-        payload = jwt.decode(access_token, JWT_KEY, options=JWT_OPTIONS, audience="acc", algorithms=["HS256"])
-
-        decoded = base64.decodebytes(payload.get("sub").encode())
-        return decoded.decode()
-    except jwt.PyJWTError as e:
-        print(e)
-        return -1
 
 
 def get_torrent_file(hash_v2: str) -> str:

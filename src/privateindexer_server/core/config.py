@@ -2,7 +2,11 @@ import os
 
 APP_VERSION = "1.10.0"
 
-TORRENTS_DIR = "/app/torrents"
+DATA_DIR = "/app/data"
+
+TORRENTS_DIR = os.path.join(DATA_DIR, "torrents")
+
+JWT_KEY_FILE = os.path.join(DATA_DIR, "jwt.key")
 
 CATEGORIES = [{"id": 2000, "name": "Movies"}, {"id": 5000, "name": "TV"}, {"id": 3000, "name": "Audio"}]
 
@@ -25,14 +29,6 @@ STALE_THRESHOLD = 60 * 60 * 24 * int(os.getenv("STALE_THRESHOLD", 30))
 SYNC_BATCH_SIZE = int(os.getenv("SYNC_BATCH_SIZE", 5000))
 
 ACCESS_TOKEN_EXPIRATION = int(os.getenv("ACCESS_TOKEN_EXPIRATION", 10))
-
-JWT_KEY = os.getenv("JWT_KEY")
-JWT_OPTIONS = {
-    "require": ["exp", "sub", "aud"],
-    "verify_aud": True,
-    "strict_aud": True,
-    "verify_exp": True
-}
 
 REDIS_HOST = os.getenv("REDIS_HOST")
 
