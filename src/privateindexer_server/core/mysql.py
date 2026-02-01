@@ -1,9 +1,10 @@
 import asyncio
+import warnings
 from typing import Optional
 
 import aiomysql
 
-from privateindexer_server.core.config import MYSQL_HOST, MYSQL_PORT, MYSQL_USER, MYSQL_PASSWORD, MYSQL_DB, MYSQL_MAX_RETY, MYSQL_RETRY_BACKOFF
+from privateindexer_server.core.config import MYSQL_HOST, MYSQL_PORT, MYSQL_USER, MYSQL_PASSWORD, MYSQL_DB, MYSQL_MAX_RETY, MYSQL_RETRY_BACKOFF, MYSQL_ROOT_PASSWORD
 from privateindexer_server.core.logger import log
 
 _db_pool: Optional[aiomysql.Pool] = None
@@ -72,23 +73,45 @@ async def setup_database():
     Setup tables and perform migrations
     Creates a connection pool to MySQL database
     """
+    # disable aiomysql useless warnings
+    warnings.filterwarnings('ignore', module=r"aiomysql")
+
     global _db_pool
+    tables = {"users": USERS_TABLE_SQL, "torrents": TORRENTS_TABLE_SQL, }
+
+    # first connect as root to check/create the schema and give proper permissions to the runtime user
+    async with aiomysql.connect(host=MYSQL_HOST, port=MYSQL_PORT, user="root", password=MYSQL_ROOT_PASSWORD, autocommit=True) as conn:
+        async with conn.cursor() as cur:
+            log.debug("[MYSQL] Connected to database as root for setup")
+
+            # create the schema if doens't already exist
+            await cur.execute(f"CREATE DATABASE IF NOT EXISTS `{MYSQL_DB}` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci")
+            log.debug(f"[MYSQL] Ensured database '{MYSQL_DB}' exists")
+
+            # create user if doesn't already exist
+            await cur.execute("CREATE USER IF NOT EXISTS %s@'%%' IDENTIFIED BY %s", (MYSQL_USER, MYSQL_PASSWORD,))
+            log.debug(f"[MYSQL] Ensured user '{MYSQL_USER}' exists")
+
+            # grant permissions to user if not already
+            await cur.execute(f"GRANT ALL ON `{MYSQL_DB}`.* TO %s@'%%'", (MYSQL_USER,))
+            log.debug(f"[MYSQL] Granted privileges on '{MYSQL_DB}' to '{MYSQL_USER}'")
+
+    # create the user connection pool
     _db_pool = await aiomysql.create_pool(host=MYSQL_HOST, port=MYSQL_PORT, user=MYSQL_USER, password=MYSQL_PASSWORD, db=MYSQL_DB, autocommit=True)
-    log.debug("[MYSQL] Connected to database")
+    log.debug(f"[MYSQL] Connected to database '{MYSQL_DB}' as '{MYSQL_USER}'")
 
-    tables = {"torrents": TORRENTS_TABLE_SQL, "users": USERS_TABLE_SQL, }
-
-    # perform database setup
+    # create any missing tables
     async with _db_pool.acquire() as conn:
-        async with conn.cursor(aiomysql.DictCursor) as cur:
-
-            # add missing tables
+        async with conn.cursor() as cur:
             for table_name, create_sql in tables.items():
                 await cur.execute("SHOW TABLES LIKE %s", (table_name,))
                 exists = await cur.fetchone()
+
                 if not exists:
-                    log.info(f"[MYSQL] Creating missing table '{table_name}'")
                     await cur.execute(create_sql)
+                    log.info(f"[MYSQL] Created table '{table_name}'")
+
+    log.debug("[MYSQL] Database setup completed")
 
 
 async def disconnect_database():
