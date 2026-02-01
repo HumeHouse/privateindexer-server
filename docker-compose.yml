@@ -1,98 +1,69 @@
 networks:
   privateindexer-net:
     name: privateindexer-net
-  mysql-net:
-    name: mysql-net
-    external: true
-  nginx-net:
-    name: nginx-net
-    external: true
-  nginx-public-net:
-    external: true
-    name: nginx-public-net
+    driver: bridge
 services:
-  privateindexer-server:
-    image: privateindexer-server:latest
+  server:
+    image: ghcr.io/humehouse/privateindexer-server:latest
     container_name: privateindexer-server
-    restart: always
+    restart: unless-stopped
     environment:
       REDIS_HOST: privateindexer-redis
-      MYSQL_HOST: mysql
-      MYSQL_USER: root
-      MYSQL_PASSWORD: password
-      ANNOUNCE_INTERVAL: 900
-      PEER_TIMEOUT: 1800
-      DATABASE_CHECK_INTERVAL: 120
-      STALE_CHECK_INTERVAL: 12
-      STALE_THRESHOLD: 30
-      LOG_LEVEL: INFO
-      HIGH_LATECY_THRESHOLD: 100
+      MYSQL_HOST: privateindexer-mysql
+      EXTERNAL_SERVER_URL: https://indexer.humehouse.com
+      EXTERNAL_TRACKER_URL: https://tracker.humehouse.com
     volumes:
-      - /humehouse/privateindexer/server/torrents:/app/torrents
+      - /humehouse/privateindexer/server/data:/app/data
       - /humehouse/privateindexer/server/logs:/app/logs
     networks:
-      privateindexer-net:
-      mysql-net:
-      nginx-net:
-        ipv4_address: 172.0.3.18
-      nginx-public-net:
-        ipv4_address: 172.0.4.4
+      - privateindexer-net
     depends_on:
-      - redis
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    ports:
+      - "8080:8080"
     logging:
       options:
-        max-size: 50m
+        max-size: 10m
         max-file: 5
-    labels:
-      autoheal: false
-    build:
-      context: .
-      network: host
-  privateindexer-tracker:
-    image: privateindexer-tracker:latest
-    container_name: privateindexer-tracker
-    restart: always
-    environment:
-      REDIS_HOST: privateindexer-redis
-      MYSQL_HOST: mysql
-      MYSQL_USER: root
-      MYSQL_PASSWORD: password
-      ANNOUNCE_INTERVAL: 900
-      PEER_TIMEOUT: 1800
-      LOG_LEVEL: INFO
-    volumes:
-      - /humehouse/privateindexer/tracker/logs:/app/logs
-    networks:
-      privateindexer-net:
-      mysql-net:
-      nginx-net:
-        ipv4_address: 172.0.3.21
-      nginx-public-net:
-        ipv4_address: 172.0.4.5
-    depends_on:
-      - redis
-      - privateindexer-server
-    logging:
-      options:
-        max-size: 50m
-        max-file: 5
-    labels:
-      autoheal: false
     build:
       context: .
       network: host
   redis:
-    image: redis:7-alpine
+    image: redis:latest
     container_name: privateindexer-redis
-    restart: always
+    restart: unless-stopped
     volumes:
       - /humehouse/privateindexer/server/redis:/data
     networks:
-      privateindexer-net:
+      - privateindexer-net
     healthcheck:
       test: redis-cli ping
       interval: 30s
       timeout: 10s
       retries: 3
-    labels:
-      autoheal: true
+  mysql:
+    container_name: privateindexer-mysql
+    image: mysql:8
+    command:
+      --mysql-native-password=ON
+      --skip-log-bin
+      --range-optimizer-max-mem-size=0
+      --innodb-undo-log-truncate=ON
+      --innodb-max-undo-log-size=128M
+    environment:
+      MYSQL_USER: privateindexer
+      MYSQL_PASSWORD: privateindexer
+      MYSQL_DATABASE: privateindexer
+    volumes:
+      - /humehouse/privateindexer/server/mysql:/var/lib/mysql
+    restart: unless-stopped
+    healthcheck:
+      test: mysql --version
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    networks:
+      - privateindexer-net
