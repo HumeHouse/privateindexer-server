@@ -20,20 +20,40 @@ from privateindexer_server.core.utils import User
 router = APIRouter()
 
 
-async def api_key_required(apikey_query: str | None = Query(None, alias="apikey"), apikey_form: str | None = Form(None, alias="apikey"),
-                           apikey_header: str | None = Header(None, alias="X-API-Key"), ) -> User:
+async def api_key_required(api_key_query: str | None = Query(None, alias="apikey"), api_key_form: str | None = Form(None, alias="apikey"),
+                           api_key_header: str | None = Header(None, alias="X-API-Key"), ) -> User:
     """
     FastAPI depenedency to validate user API keys and return user data from database
     """
-    apikey = apikey_query or apikey_form or apikey_header
+    api_key = api_key_query or api_key_form or api_key_header
 
-    if not apikey:
+    if not api_key:
         raise HTTPException(status_code=401, detail="API key missing")
 
-    user = await utils.get_user_by_key(apikey)
+    user = await utils.get_user(api_key=api_key)
     if not user:
-        log.warning(f"[USER] Invalid API key sent: {apikey}")
+        log.warning(f"[USER] Invalid API key sent: {api_key}")
         raise HTTPException(status_code=401, detail="Invalid API key")
+    return user
+
+
+async def access_token_required(access_token: str | None = Query(None, alias="at"), ) -> User:
+    """
+    FastAPI depenedency to validate JWT access token and return user data from database
+    """
+    if not access_token:
+        raise HTTPException(status_code=401, detail="Access token missing")
+
+    user_id = utils.validate_access_token(access_token)
+
+    if user_id == -1:
+        log.warning(f"[USER] Invalid or expired access token used: {access_token}")
+        raise HTTPException(status_code=401, detail="Invalid or expired access token")
+
+    user = await utils.get_user(user_id=user_id)
+    if not user:
+        log.warning(f"[USER] Invalid user ID: {user_id}")
+        raise HTTPException(status_code=401, detail="Invalid or expired access token")
     return user
 
 
@@ -243,6 +263,9 @@ async def torznab_api(user: User = Depends(api_key_required), t: str = Query(...
             where_clauses.append(f"t.added_by_user_id != %s")
             where_params.append(user.user_id)
 
+        # generate an access token to be inserted into returned URLs
+        access_token = utils.create_access_token(user.user_id)
+
         # if no query is specified in a regular search, assume an RSS query is being made
         if t == "search" and (not q or q.strip() == ""):
 
@@ -273,14 +296,14 @@ async def torznab_api(user: User = Depends(api_key_required), t: str = Query(...
                     log.error(f"[TORZNAB] Failed to fetch seeders/leechers from Redis: {e}")
 
                 # feed the client URLs with the torrent hash and their API key added to the end
-                torrent_url_with_key = f"https://indexer.humehouse.com/grab?infohash={torrent_result['hash_v2']}&apikey={user.apikey}"
-                torrent_link = f"https://indexer.humehouse.com/view/{torrent_result["id"]}?apikey={user.apikey}"
+                torrent_url_with_token = f"https://indexer.humehouse.com/grab?infohash={torrent_result['hash_v2']}&at={access_token}"
+                torrent_link_with_token = f"https://indexer.humehouse.com/view/{torrent_result["id"]}?at={access_token}"
                 items.append(f"""
                     <item>
                         <title>{escape(torrent_result["name"])}</title>
                         <guid isPermaLink="false">humehouse-{torrent_result['hash_v2']}</guid>
-                        <comments>{escape(torrent_link)}</comments>
-                        <enclosure url="{escape(torrent_url_with_key)}" length="{torrent_result["size"]}" type="application/x-bittorrent"/>
+                        <comments>{escape(torrent_link_with_token)}</comments>
+                        <enclosure url="{escape(torrent_url_with_token)}" length="{torrent_result["size"]}" type="application/x-bittorrent"/>
                         <size>{torrent_result["size"]}</size>
                         <pubDate>{torrent_result["added_on"].strftime("%a, %d %b %Y %H:%M:%S GMT")}</pubDate>
                         <category>{torrent_result["category"]}</category>
@@ -424,15 +447,15 @@ async def torznab_api(user: User = Depends(api_key_required), t: str = Query(...
                 log.error(f"[TORZNAB] Failed to fetch seeders/leechers from Redis: {e}")
 
             # feed the client URLs with the torrent hash and their API key added to the end
-            torrent_url_with_key = f"https://indexer.humehouse.com/grab?infohash={torrent_result['hash_v2']}&apikey={user.apikey}"
-            torrent_link = f"https://indexer.humehouse.com/view/{torrent_result["id"]}?apikey={user.apikey}"
+            torrent_url_with_token = f"https://indexer.humehouse.com/grab?infohash={torrent_result['hash_v2']}&at={access_token}"
+            torrent_link_with_token = f"https://indexer.humehouse.com/view/{torrent_result["id"]}?at={access_token}"
             item = f"""
             <item>
                 <title>{escape(torrent_result["name"])}</title>
                 <guid isPermaLink="false">humehouse-{torrent_result['hash_v2']}</guid>
-                <link>{escape(torrent_url_with_key)}</link>
-                <comments>{escape(torrent_link)}</comments>
-                <enclosure url="{escape(torrent_url_with_key)}" length="{torrent_result["size"]}" type="application/x-bittorrent"/>
+                <link>{escape(torrent_url_with_token)}</link>
+                <comments>{escape(torrent_link_with_token)}</comments>
+                <enclosure url="{escape(torrent_url_with_token)}" length="{torrent_result["size"]}" type="application/x-bittorrent"/>
                 <size>{torrent_result["size"]}</size>
                 <pubDate>{torrent_result["added_on"].strftime("%a, %d %b %Y %H:%M:%S GMT")}</pubDate>
                 <category>{torrent_result["category"]}</category>
@@ -475,7 +498,7 @@ async def torznab_api(user: User = Depends(api_key_required), t: str = Query(...
 
 
 @router.get("/grab")
-async def grab(user: User = Depends(api_key_required), infohash: str = Query(...), nograb: bool = Query(False)):
+async def grab(user: User = Depends(access_token_required), infohash: str = Query(...), nograb: bool = Query(False)):
     """
     Called by a client to request a torrent file which matches the provided infohash
     """
@@ -502,7 +525,7 @@ async def grab(user: User = Depends(api_key_required), infohash: str = Query(...
 
         # add the tracking URL to the torrent info
         torrent_dict = lt.bdecode(raw)
-        tracker_url = f"{ANNOUNCE_TRACKER_URL}?apikey={user.apikey}"
+        tracker_url = f"{ANNOUNCE_TRACKER_URL}?apikey={user.api_key}"
         torrent_dict[b"announce"] = tracker_url.encode()
         torrent_dict[b"announce-list"] = [[tracker_url.encode()]]
 
