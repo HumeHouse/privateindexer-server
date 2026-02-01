@@ -1,16 +1,19 @@
+import base64
 import os
 import re
 import time
-from datetime import datetime, timezone
+import uuid
+from datetime import datetime, timezone, timedelta
 from decimal import Decimal
 from urllib.parse import unquote_to_bytes
 
+import jwt
 import libtorrent as lt
 from unidecode import unidecode
 from fastapi import Request
 
 from privateindexer_server.core import mysql, redis
-from privateindexer_server.core.config import TORRENTS_DIR, CATEGORIES, PEER_TIMEOUT
+from privateindexer_server.core.config import TORRENTS_DIR, CATEGORIES, PEER_TIMEOUT, JWT_KEY, ACCESS_TOKEN_EXPIRATION, JWT_OPTIONS
 from privateindexer_server.core.logger import log
 
 SEASON_EPISODE_REGEX = re.compile(r"S(?P<season>\d{1,4})(?:E(?P<episode>\d{1,3}))?|(?P<season_alt>\d{1,4})x(?P<episode_alt>\d{1,3})", re.IGNORECASE, )
@@ -20,27 +23,66 @@ class User:
     """
     Helper class to store user information
     """
+    user_id: int
+    user_label: str
+    api_key: str
+    downloaded: int
+    uploaded: int
 
-    def __init__(self, user_id: int, user_label: str, apikey: str, downloaded: int, uploaded: int):
+    def __init__(self, user_id: int, user_label: str, api_key: str, downloaded: int, uploaded: int):
         self.user_id: int = user_id
         self.user_label: str = user_label
-        self.apikey: str = apikey
+        self.api_key: str = api_key
         self.downloaded: int = downloaded
         self.uploaded: int = uploaded
 
 
-async def get_user_by_key(apikey: str) -> User | None:
+async def get_user(api_key: str = None, user_id: int = None) -> User | None:
     """
-    Validate API key sent by client and fetch user data from database
+    Fetch user data based on API key or user ID
     """
-    if not apikey:
+
+    if api_key:
+        row = await mysql.fetch_one("SELECT id, label, downloaded, uploaded FROM users WHERE api_key = %s", (api_key,))
+    elif user_id:
+        row = await mysql.fetch_one("SELECT id, label, downloaded, uploaded FROM users WHERE id = %s", (user_id,))
+    else:
         return None
 
-    row = await mysql.fetch_one("SELECT id, label, downloaded, uploaded FROM users WHERE api_key = %s", (apikey,))
     if not row:
         return None
 
-    return User(row["id"], row["label"], apikey, row["downloaded"], row["uploaded"])
+    return User(row["id"], row["label"], api_key, row["downloaded"], row["uploaded"])
+
+
+def create_access_token(user_id: int) -> str:
+    """
+    Creates a JWT access token using the user ID and purpose
+    """
+    payload = {
+        "sub": (base64.b64encode(str(user_id).encode())).decode(),
+        "exp": datetime.now(timezone.utc) + timedelta(minutes=ACCESS_TOKEN_EXPIRATION),
+        "for": "privateindexer",
+        "aud": "acc",
+        "jti": str(uuid.uuid4())
+    }
+    return jwt.encode(payload, JWT_KEY)
+
+
+def validate_access_token(access_token: str) -> int:
+    """
+    Helper to validate and decode JWT access token payload, returning user ID
+    """
+    if access_token is None:
+        return -1
+    try:
+        payload = jwt.decode(access_token, JWT_KEY, options=JWT_OPTIONS, audience="acc", algorithms=["HS256"])
+
+        decoded = base64.decodebytes(payload.get("sub").encode())
+        return decoded.decode()
+    except jwt.PyJWTError as e:
+        print(e)
+        return -1
 
 
 def get_torrent_file(hash_v2: str) -> str:

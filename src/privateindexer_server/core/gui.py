@@ -3,7 +3,7 @@ from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
 
 from privateindexer_server.core import mysql, utils
-from privateindexer_server.core.api import api_key_required
+from privateindexer_server.core.api import access_token_required
 from privateindexer_server.core.logger import log
 from privateindexer_server.core.utils import User
 
@@ -12,7 +12,7 @@ templates = Jinja2Templates(directory="/app/src/templates")
 
 
 @router.get("/view/{torrent_id}", response_class=HTMLResponse)
-async def view(torrent_id: int, request: Request, user: User = Depends(api_key_required)):
+async def view(torrent_id: int, request: Request, user: User = Depends(access_token_required)):
     """
     Endpoint called by users to view data about a torrent in a browser
     Serves a Jinja HTML template
