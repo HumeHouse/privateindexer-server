@@ -3,16 +3,18 @@ from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
 
 from privateindexer_server.core import mysql, utils
-from privateindexer_server.core.api import api_key_required
+from privateindexer_server.core.config import SITE_NAME
+from privateindexer_server.core.jwt_helper import AccessTokenValidator
 from privateindexer_server.core.logger import log
-from privateindexer_server.core.utils import User
+from privateindexer_server.core.user_helper import User
 
 router = APIRouter()
 templates = Jinja2Templates(directory="/app/src/templates")
+templates.env.globals["SITE_NAME"] = SITE_NAME
 
 
 @router.get("/view/{torrent_id}", response_class=HTMLResponse)
-async def view(torrent_id: int, request: Request, user: User = Depends(api_key_required)):
+async def view(torrent_id: int, request: Request, user: User = Depends(AccessTokenValidator("view"))):
     """
     Endpoint called by users to view data about a torrent in a browser
     Serves a Jinja HTML template
@@ -55,4 +57,4 @@ async def view(torrent_id: int, request: Request, user: User = Depends(api_key_r
     log.info(f"[VIEW] User '{user.user_label}' viewed torrent ID {torrent_id}")
 
     # display the HTML Jinja template with torrent object context
-    return templates.TemplateResponse(name="view_torrent.html", context={"torrent": torrent, }, request=request)
+    return templates.TemplateResponse(name="view_torrent.html", context={"torrent": torrent, "instance_name": INSTANCE_NAME, }, request=request)

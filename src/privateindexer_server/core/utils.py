@@ -1,5 +1,7 @@
+import hashlib
 import os
 import re
+import secrets
 import time
 from datetime import datetime, timezone
 from decimal import Decimal
@@ -9,38 +11,11 @@ import libtorrent as lt
 from unidecode import unidecode
 from fastapi import Request
 
-from privateindexer_server.core import mysql, redis
+from privateindexer_server.core import redis
 from privateindexer_server.core.config import TORRENTS_DIR, CATEGORIES, PEER_TIMEOUT
 from privateindexer_server.core.logger import log
 
 SEASON_EPISODE_REGEX = re.compile(r"S(?P<season>\d{1,4})(?:E(?P<episode>\d{1,3}))?|(?P<season_alt>\d{1,4})x(?P<episode_alt>\d{1,3})", re.IGNORECASE, )
-
-
-class User:
-    """
-    Helper class to store user information
-    """
-
-    def __init__(self, user_id: int, user_label: str, apikey: str, downloaded: int, uploaded: int):
-        self.user_id: int = user_id
-        self.user_label: str = user_label
-        self.apikey: str = apikey
-        self.downloaded: int = downloaded
-        self.uploaded: int = uploaded
-
-
-async def get_user_by_key(apikey: str) -> User | None:
-    """
-    Validate API key sent by client and fetch user data from database
-    """
-    if not apikey:
-        return None
-
-    row = await mysql.fetch_one("SELECT id, label, downloaded, uploaded FROM users WHERE api_key = %s", (apikey,))
-    if not row:
-        return None
-
-    return User(row["id"], row["label"], apikey, row["downloaded"], row["uploaded"])
 
 
 def get_torrent_file(hash_v2: str) -> str:
@@ -207,3 +182,12 @@ async def get_seeders_and_leechers(torrent_id: int) -> tuple[int, int]:
             leechers += 1
 
     return seeders, leechers
+
+
+def generate_sid() -> str:
+    """
+    Generate a simple session ID
+    """
+    nonce = secrets.token_hex(16)
+    raw = f"{nonce}:{time.time()}"
+    return hashlib.sha256(raw.encode()).hexdigest()
