@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html lang="en" data-bs-theme="dark">
+<head>
+    <meta charset="UTF-8">
+    <title>Admin Dashboard</title>
+    <link rel="icon" type="image/x-icon" href="/static/favicon.ico">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/css/bootstrap.min.css"
+          integrity="sha256-2FMn2Zx6PuH5tdBQDRNwrOo60ts5wWPC9R8jK67b3t4=" crossorigin="anonymous">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.13.1/font/bootstrap-icons.min.css"
+          integrity="sha256-pdY4ejLKO67E0CM2tbPtq1DJ3VGDVVdqAR6j3ZwdiE4=" crossorigin="anonymous">
+</head>
+<body>
+<nav class="navbar navbar-expand-lg bg-body border-bottom mb-4">
+    <div class="container">
+        <div class="navbar-brand d-flex align-items-center gap-2">
+            <img src="/static/logo.png" style="height: 50px;" alt="logo">
+            <span class="fw-semibold">{{ SITE_NAME }}</span>
+        </div>
+        <button class="btn btn-success" data-bs-toggle="modal" data-bs-target="#createUserModal">
+            Create User
+        </button>
+    </div>
+</nav>
+<div class="container">
+    <div class="card">
+        <div class="card-header fw-semibold">
+            Users
+        </div>
+        <div class="card-body p-0">
+            <table class="table table-hover table-sm mb-0 align-middle">
+                <thead class="table-secondary">
+                <tr>
+                    <th>ID</th>
+                    <th>Label</th>
+                    <th>Status</th>
+                    <th>API Key</th>
+                    <th class="text-end">DL</th>
+                    <th class="text-end">UL</th>
+                    <th class="text-end">Seeds</th>
+                    <th class="text-end">Leeches</th>
+                    <th class="text-end">Grabs</th>
+                    <th class="text-end">Last Seen</th>
+                    <th class="text-end">Actions</th>
+                </tr>
+                </thead>
+                <tbody id="userTable">
+                <tr>
+                    <td colspan="11" class="text-center text-muted py-4">
+                        Loading...
+                    </td>
+                </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+<div class="modal fade" id="createUserModal" tabindex="-1">
+    <div class="modal-dialog">
+        <form class="modal-content" id="createUserForm">
+            <div class="modal-header">
+                <h5 class="modal-title">Create User</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="mb-3">
+                    <label class="form-label">User Label</label>
+                    <input type="text" class="form-control" id="userLabel" required>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button class="btn btn-success" type="submit">Create</button>
+            </div>
+        </form>
+    </div>
+</div>
+<script src="https://cdn.jsdelivr.net/npm/jquery@3.7.1/dist/jquery.min.js"
+        integrity="sha256-/JqT3SQfawRcv/BIHPThkBvs0OEvtFFmqPF/lYI/Cxo=" crossorigin="anonymous"></script>
+<script src="https://cdn.jsdelivr.net/npm/popper.js@1.16.1/dist/umd/popper.min.js"
+        integrity="sha256-/ijcOLwFf26xEYAjW75FizKVo5tnTYiQddPZoLUHHZ8=" crossorigin="anonymous"></script>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/js/bootstrap.min.js"
+        integrity="sha256-ew8UiV1pJH/YjpOEBInP1HxVvT/SfrCmwSoUzF9JIgc=" crossorigin="anonymous"></script>
+<script>
+    function formatBytes(bytes) {
+        if (!bytes || bytes <= 0) return "0 B";
+        const units = ["B", "KiB", "MiB", "GiB", "TiB"];
+        const i = Math.floor(Math.log(bytes) / Math.log(1024));
+        return (bytes / Math.pow(1024, i)).toFixed(1) + " " + units[i];
+    }
+
+    async function loadUsers() {
+        let userTable = $("#userTable")
+        userTable.html(`<tr><td colspan="11" class="text-center text-muted py-4">Loading...</td></tr>`);
+
+        const res = await fetch("/admin/users");
+        const users = await res.json();
+
+        if (!users.length) {
+            userTable.html(`<tr><td colspan="11" class="text-center text-muted py-4">No users</td></tr>`);
+            return;
+        }
+
+        userTable.html(users.map(user => {
+            const reachable = user["reachable"] === 1;
+
+            return `
+                <tr>
+                    <td>${user["id"]}</td>
+        
+                    <td class="fw-semibold">
+                        ${user["label"]}
+                    </td>
+        
+                    <td>
+                        <span class="badge ${reachable ? "bg-success" : "bg-danger"}">
+                            ${reachable ? "● Reachable" : "● Unreachable"}
+                        </span>
+                    </td>
+        
+                    <td>
+                       <span class="api-key" data-key="${user["api_key"]}"></span>
+                        <button class="btn btn-link btn-sm p-0 ms-1 copy-api-key"
+                                title="Copy API key">
+                            <i class="bi bi-clipboard"></i>
+                        </button>
+                    </td>
+        
+                    <td class="text-end">
+                        ${formatBytes(user["downloaded"])}
+                    </td>
+        
+                    <td class="text-end">
+                        ${formatBytes(user["uploaded"])}
+                    </td>
+        
+                    <td class="text-end">
+                        ${user["seeding"]}
+                    </td>
+        
+                    <td class="text-end">
+                        ${user["leeching"]}
+                    </td>
+        
+                    <td class="text-end">
+                        ${user["grabs"]}
+                    </td>
+        
+                    <td class="text-end">
+                        <span class="text-muted"
+                              title="Last IP: ${user["last_ip"] || "—"}">
+                            ${user["last_seen"] || "—"}
+                        </span>
+                    </td>
+        
+                    <td class="text-end">
+                        <button class="btn btn-sm btn-outline-danger"
+                                onclick="deleteUser(${user["id"]})">
+                            Delete
+                        </button>
+                    </td>
+                </tr>
+            `;
+        }).join(""));
+    }
+
+    async function deleteUser(id) {
+        await fetch(`/admin/user/${id}`, {
+            method: "DELETE"
+        });
+
+        await loadUsers();
+    }
+
+    $("#createUserForm").on("submit", async function (e) {
+        e.preventDefault();
+
+        let userLabel = $("#userLabel");
+
+        await fetch("/admin/user", {
+            method: "POST",
+            headers: {"Content-Type": "application/x-www-form-urlencoded"},
+            body: new URLSearchParams({user_label: userLabel.val()})
+        });
+
+        userLabel.val("");
+        bootstrap.Modal.getInstance($("#createUserModal")).hide();
+        await loadUsers();
+    });
+
+    $(document).on("click", ".copy-api-key", function () {
+        const key = $(this).siblings(".api-key").data("key");
+
+        navigator.clipboard.writeText(key);
+
+        const btn = $(this);
+        btn.html(`<i class="bi bi-check-lg"></i>`);
+        setTimeout(() => {
+            btn.html('<i class="bi bi-clipboard"></i>');
+        }, 1000);
+    });
+
+    loadUsers();
+</script>
+</body>
+</html>
