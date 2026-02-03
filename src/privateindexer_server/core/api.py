@@ -13,7 +13,7 @@ from fastapi import HTTPException, Query, Request, UploadFile, File, Form, APIRo
 from fastapi.responses import Response, PlainTextResponse, JSONResponse
 
 from privateindexer_server.core import mysql, utils, redis, user_helper, jwt_helper
-from privateindexer_server.core.config import CATEGORIES, ANNOUNCE_TRACKER_URL, SYNC_BATCH_SIZE, EXTERNAL_SERVER_URL
+from privateindexer_server.core.config import CATEGORIES, ANNOUNCE_TRACKER_URL, SYNC_BATCH_SIZE, EXTERNAL_SERVER_URL, SITE_NAME
 from privateindexer_server.core.jwt_helper import AccessTokenValidator
 from privateindexer_server.core.logger import log
 from privateindexer_server.core.user_helper import User
@@ -214,7 +214,7 @@ async def torznab_api(user: User = Depends(api_key_required), t: str = Query(...
         log.debug(f"[TORZNAB] User '{user.user_label}' sent capability request")
         xml = f"""<?xml version="1.0" encoding="UTF-8"?>
         <caps>
-            <server version="1.0" title="HumeHouse PrivateIndexer Server"/>
+            <server version="1.0" title="{SITE_NAME}"/>
             <limits default="100" max="1000"/>
             <categories>
             {''.join([f'<category id="{c["id"]}" name="{c["name"]}"/>' for c in CATEGORIES])}
@@ -310,8 +310,7 @@ async def torznab_api(user: User = Depends(api_key_required), t: str = Query(...
             xml = f"""<?xml version="1.0" encoding="UTF-8" ?>
                 <rss version="2.0" xmlns:torznab="http://torznab.com/schemas/2015/feed">
                     <channel>
-                        <title>HumeHouse PrivateIndexer</title>
-                        <description>For friends of David</description>
+                        <title>{SITE_NAME}</title>
                         {"".join(items)}
                     </channel>
                 </rss>
@@ -464,8 +463,7 @@ async def torznab_api(user: User = Depends(api_key_required), t: str = Query(...
         xml = f"""<?xml version="1.0" encoding="UTF-8" ?>
             <rss version="2.0" xmlns:torznab="http://torznab.com/schemas/2015/feed">
                 <channel>
-                    <title>HumeHouse PrivateIndexer</title>
-                    <description>For friends of David</description>
+                    <title>{SITE_NAME}</title>
                     <link>{EXTERNAL_SERVER_URL}/api</link>
                     <torznab:response offset="{offset}" total="{total_matches}"/>
                     {"".join(items)}
