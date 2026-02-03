@@ -6,10 +6,12 @@ from fastapi.responses import HTMLResponse, RedirectResponse, PlainTextResponse,
 from fastapi.templating import Jinja2Templates
 
 from privateindexer_server.core import utils, admin_helper, user_helper
+from privateindexer_server.core.config import SITE_NAME
 from privateindexer_server.core.logger import log
 
 router = APIRouter(prefix="/admin")
 templates = Jinja2Templates(directory="/app/src/templates")
+templates.env.globals["SITE_NAME"] = SITE_NAME
 
 SESSIONS = {}
 # 30-day session lifetime
@@ -34,15 +36,15 @@ async def dashboard(request: Request):
     """
     # if there is no password set, allow the user to create one
     if admin_helper.get_admin_password() is None:
-        return templates.TemplateResponse(name="admin_setup.html", context={}, request=request)
+        return templates.TemplateResponse(name="admin_setup.html", request=request)
 
     # check if session is valid
     if not validate_session(request):
-        return templates.TemplateResponse(name="admin_login.html", context={}, request=request)
+        return templates.TemplateResponse(name="admin_login.html", request=request)
 
     log.info(f"[ADMIN] Admin panel viewed")
 
-    return templates.TemplateResponse(name="admin_dashboard.html", context={}, request=request)
+    return templates.TemplateResponse(name="admin_dashboard.html", request=request)
 
 
 @router.post("/setup", response_class=HTMLResponse)

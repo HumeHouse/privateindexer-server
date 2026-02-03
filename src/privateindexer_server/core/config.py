@@ -33,6 +33,8 @@ SYNC_BATCH_SIZE = int(os.getenv("SYNC_BATCH_SIZE", 5000))
 
 ACCESS_TOKEN_EXPIRATION = int(os.getenv("ACCESS_TOKEN_EXPIRATION", 10))
 
+SITE_NAME = os.getenv("SITE_NAME", "HumeHouse PrivateIndexer")
+
 REDIS_HOST = os.getenv("REDIS_HOST")
 
 MYSQL_HOST = os.getenv("MYSQL_HOST")
