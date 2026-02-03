@@ -1,3 +1,5 @@
+import secrets
+
 from privateindexer_server.core import mysql
 
 
@@ -35,3 +37,27 @@ async def get_user(api_key: str = None, user_id: int = None) -> User | None:
         return None
 
     return User(row["id"], row["label"], api_key, row["downloaded"], row["uploaded"])
+
+
+async def get_users() -> list[dict]:
+    """
+    Fetch all users from database
+    """
+    return await mysql.fetch_all("SELECT * FROM users")
+
+
+async def create_user(user_label: str):
+    """
+    Adds a new user with a generated API key
+    """
+    api_key = secrets.token_hex(16)
+
+    await mysql.execute("INSERT INTO users (label, api_key) VALUES (%s, %s)", (user_label, api_key,))
+
+
+async def delete_user(user_id: int = None):
+    """
+    Removes a user based on the user ID
+    """
+
+    await mysql.execute("DELETE FROM users WHERE id = %s", (user_id,))
