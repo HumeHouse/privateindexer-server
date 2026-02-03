@@ -41,6 +41,10 @@ def set_admin_password(admin_password: str) -> bool:
     if len(admin_password) < 12:
         return False
 
+    # require at least one lowercase letter
+    if sum(1 for c in admin_password if c.islower()) < 1:
+        return False
+
     # require at least one capital letter
     if sum(1 for c in admin_password if c.isupper()) < 1:
         return False
