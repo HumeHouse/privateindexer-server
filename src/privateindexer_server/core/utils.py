@@ -1,5 +1,7 @@
+import hashlib
 import os
 import re
+import secrets
 import time
 from datetime import datetime, timezone
 from decimal import Decimal
@@ -180,3 +182,12 @@ async def get_seeders_and_leechers(torrent_id: int) -> tuple[int, int]:
             leechers += 1
 
     return seeders, leechers
+
+
+def generate_sid() -> str:
+    """
+    Generate a simple session ID
+    """
+    nonce = secrets.token_hex(16)
+    raw = f"{nonce}:{time.time()}"
+    return hashlib.sha256(raw.encode()).hexdigest()

@@ -8,6 +8,8 @@ TORRENTS_DIR = os.path.join(DATA_DIR, "torrents")
 
 JWT_KEY_FILE = os.path.join(DATA_DIR, "jwt.key")
 
+ADMIN_PASSWORD_FILE = os.path.join(DATA_DIR, "admin.password")
+
 CATEGORIES = [{"id": 2000, "name": "Movies"}, {"id": 5000, "name": "TV"}, {"id": 3000, "name": "Audio"}]
 
 EXTERNAL_TRACKER_URL = (os.getenv("EXTERNAL_TRACKER_URL")).strip("/")

@@ -6,7 +6,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI, Request, Response
 from fastapi.staticfiles import StaticFiles
 
-from privateindexer_server.core import mysql, api, database_check, stale_check, redis, utils, peer_timeout, stats_update, gui, jwt_helper
+from privateindexer_server.core import mysql, api, database_check, stale_check, redis, utils, peer_timeout, stats_update, gui, jwt_helper, admin
 from privateindexer_server.core.config import TORRENTS_DIR, HIGH_LATECY_THRESHOLD, APP_VERSION, DATA_DIR, EXTERNAL_TRACKER_URL, EXTERNAL_SERVER_URL, REDIS_HOST, \
     MYSQL_HOST, MYSQL_ROOT_PASSWORD
 from privateindexer_server.core.logger import log
@@ -119,6 +119,7 @@ app.mount("/static", StaticFiles(directory="/app/src/static"), name="static")
 
 app.include_router(api.router)
 app.include_router(gui.router)
+app.include_router(admin.router)
 
 
 @app.middleware("http")
