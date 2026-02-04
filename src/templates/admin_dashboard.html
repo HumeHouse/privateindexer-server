@@ -40,6 +40,7 @@
                     <th class="text-end">Leeches</th>
                     <th class="text-end">Grabs</th>
                     <th class="text-end">Last Seen</th>
+                    <th class="text-end">Last IP</th>
                     <th class="text-end">Actions</th>
                 </tr>
                 </thead>
@@ -146,10 +147,11 @@
                     </td>
         
                     <td class="text-end">
-                        <span class="text-muted"
-                              title="Last IP: ${user["last_ip"] || "—"}">
-                            ${user["last_seen"] || "—"}
-                        </span>
+                        ${user["last_seen"] || "-"}
+                    </td>
+
+                    <td class="text-end">
+                        ${user["last_ip"] || "-"}
                     </td>
         
                     <td class="text-end">
