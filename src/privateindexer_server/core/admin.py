@@ -61,7 +61,7 @@ async def setup(request: Request, password: str = Form(...)):
     if not admin_helper.set_admin_password(password):
         return templates.TemplateResponse(name="admin_setup.html", context={"error": "Password doesn't meet requirements"}, request=request)
 
-    log.info(f"[ADMIN] Admin passwor set")
+    log.info(f"[ADMIN] Admin password set")
 
     return RedirectResponse("/admin", status_code=302)
 
@@ -95,7 +95,14 @@ async def get_users(request: Request):
     if not validate_session(request):
         raise HTTPException(status_code=401, detail="Invalid session")
 
-    return JSONResponse(await user_helper.get_users())
+    users = await user_helper.get_users()
+
+    # loop through each user and convert the datetime to a basic string
+    for user in users:
+        if user.get("last_seen"):
+            user["last_seen"] = user["last_seen"].strftime("%Y-%m-%d %H:%M:%S %Z")
+
+    return JSONResponse(users)
 
 
 @router.post("/user", response_class=HTMLResponse)
