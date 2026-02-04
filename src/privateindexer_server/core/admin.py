@@ -61,7 +61,7 @@ async def setup(request: Request, password: str = Form(...)):
     if not admin_helper.set_admin_password(password):
         return templates.TemplateResponse(name="admin_setup.html", context={"error": "Password doesn't meet requirements"}, request=request)
 
-    log.info(f"[ADMIN] Admin passwor set")
+    log.info(f"[ADMIN] Admin password set")
 
     return RedirectResponse("/admin", status_code=302)
 
