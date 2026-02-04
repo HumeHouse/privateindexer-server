@@ -40,6 +40,7 @@
                     <th class="text-end">Leeches</th>
                     <th class="text-end">Grabs</th>
                     <th class="text-end">Last Seen</th>
+                    <th class="text-end">Last IP</th>
                     <th class="text-end">Actions</th>
                 </tr>
                 </thead>
@@ -72,6 +73,30 @@
                 <button class="btn btn-success" type="submit">Create</button>
             </div>
         </form>
+    </div>
+</div>
+<div class="modal fade" id="deleteUserModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Confirm User Delete</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <p>
+                    Are you sure you want to delete the user
+                    <strong id="deleteUserLabel"></strong>?
+                </p>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" data-bs-dismiss="modal">
+                    Cancel
+                </button>
+                <button class="btn btn-danger" id="confirmDeleteUser">
+                    Delete
+                </button>
+            </div>
+        </div>
     </div>
 </div>
 <script src="https://cdn.jsdelivr.net/npm/jquery@3.7.1/dist/jquery.min.js"
@@ -146,15 +171,19 @@
                     </td>
         
                     <td class="text-end">
-                        <span class="text-muted"
-                              title="Last IP: ${user["last_ip"] || "—"}">
-                            ${user["last_seen"] || "—"}
-                        </span>
+                        ${user["last_seen"] || "-"}
+                    </td>
+
+                    <td class="text-end">
+                        ${user["last_ip"] || "-"}
                     </td>
         
                     <td class="text-end">
-                        <button class="btn btn-sm btn-outline-danger"
-                                onclick="deleteUser(${user["id"]})">
+                        <button class="btn btn-sm btn-outline-danger delete-user-btn"
+                                data-user-id="${user["id"]}"
+                                data-user-label="${user["label"]}"
+                                data-bs-toggle="modal"
+                                data-bs-target="#deleteUserModal">
                             Delete
                         </button>
                     </td>
@@ -163,13 +192,28 @@
         }).join(""));
     }
 
-    async function deleteUser(id) {
-        await fetch(`/admin/user/${id}`, {
+    let deleteUserId = null;
+
+    $(document).on("click", ".delete-user-btn", function () {
+        deleteUserId = $(this).data("user-id");
+        const label = $(this).data("user-label");
+
+        $("#deleteUserLabel").text(label);
+    });
+
+    $("#confirmDeleteUser").on("click", async function () {
+        if (!deleteUserId) return;
+
+        await fetch(`/admin/user/${deleteUserId}`, {
             method: "DELETE"
         });
 
+        deleteUserId = null;
+
+        bootstrap.Modal.getInstance($("#deleteUserModal")).hide();
+
         await loadUsers();
-    }
+    });
 
     $("#createUserForm").on("submit", async function (e) {
         e.preventDefault();
