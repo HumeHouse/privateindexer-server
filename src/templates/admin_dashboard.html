@@ -39,6 +39,7 @@
                     <th class="text-end">Seeds</th>
                     <th class="text-end">Leeches</th>
                     <th class="text-end">Grabs</th>
+                    <th class="text-end">Client Version</th>
                     <th class="text-end">Last Seen</th>
                     <th class="text-end">Last IP</th>
                     <th class="text-end">Actions</th>
@@ -169,7 +170,11 @@
                     <td class="text-end">
                         ${user["grabs"]}
                     </td>
-        
+
+                    <td class="text-end">
+                        ${user["client_version"] || "-"}
+                    </td>
+
                     <td class="text-end">
                         ${user["last_seen"] || "-"}
                     </td>
