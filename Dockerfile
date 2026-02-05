@@ -54,16 +54,16 @@ RUN mkdir -m 777 /app/logs \
 # add the healthcheck to hit the app's health endpoint
 HEALTHCHECK --start-period=30s --interval=30s --timeout=5s --retries=3 \
     CMD python -c "import urllib.request, sys; \
-    sys.exit(0) if urllib.request.urlopen('http://localhost:8080/health').getcode() == 200 else sys.exit(1)"
+    sys.exit(0) if urllib.request.urlopen('http://localhost:8081/health').getcode() == 200 else sys.exit(1)"
 
 # run app as container user/group
 USER privateindexer:privateindexer
 
 # open default webserver port
-EXPOSE 8080
+EXPOSE 8081
 
 # change directories into source code for running
 WORKDIR /app/src
 
 # run the app
-ENTRYPOINT ["uvicorn", "privateindexer_server.main:app", "--proxy-headers", "--workers=1", "--host=0.0.0.0", "--port=8080", "--log-config=/app/logging.yml"]
+ENTRYPOINT ["uvicorn", "privateindexer_server.main:app", "--proxy-headers", "--workers=1", "--host=0.0.0.0", "--port=8081", "--log-config=/app/logging.yml"]
