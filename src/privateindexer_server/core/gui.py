@@ -57,4 +57,4 @@ async def view(torrent_id: int, request: Request, user: User = Depends(AccessTok
     log.info(f"[VIEW] User '{user.user_label}' viewed torrent ID {torrent_id}")
 
     # display the HTML Jinja template with torrent object context
-    return templates.TemplateResponse(name="view_torrent.html", context={"torrent": torrent, "instance_name": INSTANCE_NAME, }, request=request)
+    return templates.TemplateResponse(name="view_torrent.html", context={"torrent": torrent, }, request=request)
