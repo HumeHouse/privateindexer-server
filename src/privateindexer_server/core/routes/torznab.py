@@ -89,7 +89,7 @@ async def torznab_api(user: User = Depends(api_key_required), t: str = Query(...
                     log.error(f"[TORZNAB] Failed to fetch seeders/leechers from Redis: {e}")
 
                 # feed the client URLs with the torrent hash and an access token
-                grab_link = f"{EXTERNAL_SERVER_URL}/grab?infohash={torrent_result['hash_v2']}&at={grab_access_token}"
+                grab_link = f"{EXTERNAL_SERVER_URL}/api/v2/grab?infohash={torrent_result['hash_v2']}&at={grab_access_token}"
                 view_link = f"{EXTERNAL_SERVER_URL}/view/{torrent_result["id"]}?at={view_access_token}"
                 items.append(f"""
                     <item>
@@ -240,7 +240,7 @@ async def torznab_api(user: User = Depends(api_key_required), t: str = Query(...
                 log.error(f"[TORZNAB] Failed to fetch seeders/leechers from Redis: {e}")
 
             # feed the client URLs with the torrent hash and an access token
-            grab_link = f"{EXTERNAL_SERVER_URL}/grab?infohash={torrent_result['hash_v2']}&at={grab_access_token}"
+            grab_link = f"{EXTERNAL_SERVER_URL}/api/v2/grab?infohash={torrent_result['hash_v2']}&at={grab_access_token}"
             view_link = f"{EXTERNAL_SERVER_URL}/view/{torrent_result["id"]}?at={view_access_token}"
             item = f"""
             <item>
