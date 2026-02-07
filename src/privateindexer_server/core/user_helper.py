@@ -27,16 +27,20 @@ async def get_user(api_key: str = None, user_id: int = None) -> User | None:
     """
 
     if api_key:
-        row = await mysql.fetch_one("SELECT id, label, downloaded, uploaded FROM users WHERE api_key = %s", (api_key,))
+        where_clause = "WHERE api_key = %s"
+        where_params = (api_key,)
     elif user_id:
-        row = await mysql.fetch_one("SELECT id, label, downloaded, uploaded FROM users WHERE id = %s", (user_id,))
+        where_clause = "WHERE id = %s"
+        where_params = (user_id,)
     else:
         return None
+
+    row = await mysql.fetch_one(f"SELECT id, label, api_key, downloaded, uploaded FROM users {where_clause}", where_params)
 
     if not row:
         return None
 
-    return User(row["id"], row["label"], api_key, row["downloaded"], row["uploaded"])
+    return User(row["id"], row["label"], row["api_key"], row["downloaded"], row["uploaded"])
 
 
 async def get_users() -> list[dict]:
