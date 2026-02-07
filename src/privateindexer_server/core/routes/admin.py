@@ -122,6 +122,22 @@ async def create_user(request: Request, user_label: str = Form(...)):
     return PlainTextResponse("User created")
 
 
+@router.post("/user/{user_id}", response_class=HTMLResponse)
+async def update_user(request: Request, user_id: int = Path(...), user_label: str = Form(None), rotate_key: bool = Form(False)):
+    """
+    Rotates a user's API key
+    """
+    # check if session is valid
+    if not validate_session(request):
+        raise HTTPException(status_code=401, detail="Invalid session")
+
+    await user_helper.update_user(user_id, user_label, rotate_key)
+
+    log.info(f"[ADMIN] User ID updated: {user_id}")
+
+    return PlainTextResponse("User key rotated")
+
+
 @router.delete("/user/{user_id}", response_class=HTMLResponse)
 async def delete_user(request: Request, user_id: int = Path(...)):
     """
