@@ -50,16 +50,35 @@ async def get_users() -> list[dict]:
     return await mysql.fetch_all("SELECT * FROM users")
 
 
+def generate_api_key(length: int = 32) -> str:
+    """
+    Generates a random API key with specified length
+    """
+    return secrets.token_hex(length)
+
+
 async def create_user(user_label: str):
     """
     Adds a new user with a generated API key
     """
-    api_key = secrets.token_hex(32)
+    api_key = generate_api_key()
 
     await mysql.execute("INSERT INTO users (label, api_key) VALUES (%s, %s)", (user_label, api_key,))
 
 
-async def delete_user(user_id: int = None):
+async def update_user(user_id: int, user_label: str = None, rotate_key: bool = False):
+    """
+    Updates an existing user's label or generates new API key
+    """
+    if rotate_key:
+        api_key = generate_api_key()
+        await mysql.execute("UPDATE users SET api_key = %s WHERE id = %s", (api_key, user_id,))
+
+    if user_label is not None:
+        await mysql.execute("UPDATE users SET label = %s WHERE id = %s", (user_label, user_id,))
+
+
+async def delete_user(user_id: int):
     """
     Removes a user based on the user ID
     """
