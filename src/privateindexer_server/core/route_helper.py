@@ -23,7 +23,7 @@ async def api_key_required(api_key_query: str | None = Query(None, alias="apikey
     user = await user_helper.get_user(api_key=api_key)
     if not user:
         log.warning(f"[USER] Invalid API key sent: {api_key}")
-        raise HTTPException(status_code=401, detail="Invalid API key")
+        raise HTTPException(status_code=403, detail="Invalid API key")
     return user
 
 
