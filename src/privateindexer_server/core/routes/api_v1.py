@@ -9,11 +9,11 @@ import libtorrent as lt
 from fastapi import HTTPException, Query, Request, UploadFile, File, Form, APIRouter, Depends
 from fastapi.responses import Response, PlainTextResponse, JSONResponse
 
-from privateindexer_server.core import mysql, utils
+from privateindexer_server.core import mysql, utils, route_helper
 from privateindexer_server.core.config import CATEGORIES, SYNC_BATCH_SIZE, ANNOUNCE_TRACKER_URL
 from privateindexer_server.core.jwt_helper import AccessTokenValidator
 from privateindexer_server.core.logger import log
-from privateindexer_server.core.routes.route_helper import api_key_required, latency_threshold
+from privateindexer_server.core.route_helper import api_key_required, latency_threshold
 from privateindexer_server.core.user_helper import User
 
 router = APIRouter()
@@ -26,7 +26,7 @@ async def user_login_check(user: User = Depends(api_key_required), request: Requ
     Called by PrivateIndexer clients during startup to validate the API key and update the server with preferences/stats
     """
     # use the provided IP and port, otherwise fallback to request IP and default port
-    announce_ip = announce_ip or utils.get_client_ip(request)
+    announce_ip = announce_ip or route_helper.get_client_ip(request)
     port = port or 6881
 
     # check to see if the client is reachable at the IP and port they sent us

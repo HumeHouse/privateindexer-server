@@ -7,7 +7,7 @@ from fastapi.responses import Response
 from privateindexer_server.core import jwt_helper, mysql, utils
 from privateindexer_server.core.config import SITE_NAME, CATEGORIES, EXTERNAL_SERVER_URL
 from privateindexer_server.core.logger import log
-from privateindexer_server.core.routes.route_helper import api_key_required
+from privateindexer_server.core.route_helper import api_key_required
 from privateindexer_server.core.user_helper import User
 
 router = APIRouter()

@@ -5,7 +5,8 @@ from fastapi.params import Path
 from fastapi.responses import HTMLResponse, RedirectResponse, PlainTextResponse, JSONResponse
 from fastapi.templating import Jinja2Templates
 
-from privateindexer_server.core import utils, admin_helper, user_helper
+from privateindexer_server.core import admin_helper, user_helper
+from privateindexer_server.core import route_helper
 from privateindexer_server.core.config import SITE_NAME
 from privateindexer_server.core.logger import log
 
@@ -75,7 +76,7 @@ async def login(request: Request, password: str = Form(...)):
     if not admin_helper.verify_admin_password(password):
         return templates.TemplateResponse(name="admin_login.html", context={"error": "Invalid password"}, request=request)
 
-    sid = utils.generate_sid()
+    sid = route_helper.generate_sid()
     SESSIONS[sid] = time.time() + SESSION_TTL
 
     response = RedirectResponse("/admin", status_code=302)
