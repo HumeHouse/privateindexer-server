@@ -54,7 +54,7 @@ RUN mkdir -m 777 /app/logs \
 # add the healthcheck to hit the app's health endpoint
 HEALTHCHECK --start-period=30s --interval=30s --timeout=5s --retries=3 \
     CMD python -c "import urllib.request, sys; \
-    sys.exit(0) if urllib.request.urlopen('http://localhost:8081/health').getcode() == 200 else sys.exit(1)"
+    sys.exit(0) if urllib.request.urlopen('http://localhost:8081/api/v2/health').getcode() == 200 else sys.exit(1)"
 
 # run app as container user/group
 USER privateindexer:privateindexer

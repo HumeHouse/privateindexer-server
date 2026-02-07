@@ -85,8 +85,7 @@
             </div>
             <div class="modal-body">
                 <p>
-                    Are you sure you want to delete the user
-                    <strong id="deleteUserLabel"></strong>?
+                    Are you sure you want to delete the user <strong id="deleteUserLabel"></strong>?
                 </p>
             </div>
             <div class="modal-footer">
@@ -96,6 +95,46 @@
                 <button class="btn btn-danger" id="confirmDeleteUser">
                     Delete
                 </button>
+            </div>
+        </div>
+    </div>
+</div>
+<div class="modal fade" id="rotateKeyModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Confirm Rotate API Key</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <p>
+                    Are you sure you want to rotate the API key for the user <strong id="rotateKeyLabel"></strong>?
+                    The user's old key will immediately become invalid.
+                </p>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" data-bs-dismiss="modal">
+                    Cancel
+                </button>
+                <button class="btn btn-danger" id="confirmRotateKey">
+                    Rotate
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+<div class="modal fade modal-lg" id="apiKeyModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">API Key</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <input type="text"
+                       class="form-control font-monospace"
+                       id="fullApiKey"
+                       readonly>
             </div>
         </div>
     </div>
@@ -142,12 +181,20 @@
                             ${reachable ? "● Reachable" : "● Unreachable"}
                         </span>
                     </td>
-        
+
                     <td>
-                       <span class="api-key" data-key="${user["api_key"]}"></span>
-                        <button class="btn btn-link btn-sm p-0 ms-1 copy-api-key"
-                                title="Copy API key">
+                        <button class="btn btn-link btn-sm p-0" title="Copy API key" id="copyInlineKey"
+                            data-key=${user["api_key"]}>
                             <i class="bi bi-clipboard"></i>
+                        </button>
+                        <button class="btn btn-link btn-sm p-0 ms-1" title="View API key" id="showModalKey"
+                            data-key=${user["api_key"]} data-bs-toggle="modal" data-bs-target="#apiKeyModal">
+                            <i class="bi bi-eye"></i>
+                        </button>
+                        <button class="btn btn-link btn-sm p-0 ms-1" title="Rotate API key" id="rotateKeyButton"
+                            data-user-id="${user["id"]}" data-user-label="${user["label"]}" data-bs-toggle="modal"
+                            data-bs-target="#rotateKeyModal">
+                            <i class="bi bi-arrow-repeat"></i>
                         </button>
                     </td>
         
@@ -184,11 +231,8 @@
                     </td>
         
                     <td class="text-end">
-                        <button class="btn btn-sm btn-outline-danger delete-user-btn"
-                                data-user-id="${user["id"]}"
-                                data-user-label="${user["label"]}"
-                                data-bs-toggle="modal"
-                                data-bs-target="#deleteUserModal">
+                        <button class="btn btn-sm btn-outline-danger" id="deleteUserButton" data-user-id="${user["id"]}"
+                            data-user-label="${user["label"]}" data-bs-toggle="modal" data-bs-target="#deleteUserModal">
                             Delete
                         </button>
                     </td>
@@ -199,7 +243,7 @@
 
     let deleteUserId = null;
 
-    $(document).on("click", ".delete-user-btn", function () {
+    $(document).on("click", "#deleteUserButton", function () {
         deleteUserId = $(this).data("user-id");
         const label = $(this).data("user-label");
 
@@ -236,16 +280,63 @@
         await loadUsers();
     });
 
-    $(document).on("click", ".copy-api-key", function () {
-        const key = $(this).siblings(".api-key").data("key");
+    let rotateUserId = null;
 
-        navigator.clipboard.writeText(key);
+    $(document).on("click", "#rotateKeyButton", function () {
+        rotateUserId = $(this).data("user-id");
+        const label = $(this).data("user-label");
 
+        $("#rotateKeyLabel").text(label);
+    });
+
+    $("#confirmRotateKey").on("click", async function () {
+        if (!rotateUserId) return;
+
+        await fetch(`/admin/user/${rotateUserId}`, {
+            method: "POST",
+            headers: {"Content-Type": "application/x-www-form-urlencoded"},
+            body: new URLSearchParams({rotate_key: "true"})
+        });
+
+        rotateUserId = null;
+
+        bootstrap.Modal.getInstance($("#rotateKeyModal")).hide();
+
+        await loadUsers();
+    });
+
+    $(document).on("click", "#copyInlineKey", function () {
         const btn = $(this);
-        btn.html(`<i class="bi bi-check-lg"></i>`);
-        setTimeout(() => {
-            btn.html('<i class="bi bi-clipboard"></i>');
-        }, 1000);
+        const key = btn.data("key");
+
+        if (btn.data("busy")) return;
+        btn.data("busy", true);
+
+        const resetButton = () => {
+            setTimeout(() => {
+                btn.html('<i class="bi bi-clipboard"></i>');
+                btn.data("busy", false);
+            }, 1200);
+        };
+
+        if (!navigator.clipboard?.writeText) {
+            btn.html('<i class="bi bi-x-lg text-danger"></i>');
+            resetButton();
+            return;
+        }
+
+        navigator.clipboard.writeText(key)
+            .then(() => {
+                btn.html('<i class="bi bi-check-lg text-success"></i>');
+            })
+            .catch(() => {
+                btn.html('<i class="bi bi-x-lg text-danger"></i>');
+            }).finally(resetButton);
+    });
+
+    $(document).on("click", "#showModalKey", function () {
+        const key = $(this).data("key");
+        $("#fullApiKey").val(key);
     });
 
     loadUsers();

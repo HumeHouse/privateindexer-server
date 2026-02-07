@@ -27,16 +27,20 @@ async def get_user(api_key: str = None, user_id: int = None) -> User | None:
     """
 
     if api_key:
-        row = await mysql.fetch_one("SELECT id, label, downloaded, uploaded FROM users WHERE api_key = %s", (api_key,))
+        where_clause = "WHERE api_key = %s"
+        where_params = (api_key,)
     elif user_id:
-        row = await mysql.fetch_one("SELECT id, label, downloaded, uploaded FROM users WHERE id = %s", (user_id,))
+        where_clause = "WHERE id = %s"
+        where_params = (user_id,)
     else:
         return None
+
+    row = await mysql.fetch_one(f"SELECT id, label, api_key, downloaded, uploaded FROM users {where_clause}", where_params)
 
     if not row:
         return None
 
-    return User(row["id"], row["label"], api_key, row["downloaded"], row["uploaded"])
+    return User(row["id"], row["label"], row["api_key"], row["downloaded"], row["uploaded"])
 
 
 async def get_users() -> list[dict]:
@@ -46,16 +50,35 @@ async def get_users() -> list[dict]:
     return await mysql.fetch_all("SELECT * FROM users")
 
 
+def generate_api_key(length: int = 32) -> str:
+    """
+    Generates a random API key with specified length
+    """
+    return secrets.token_hex(length)
+
+
 async def create_user(user_label: str):
     """
     Adds a new user with a generated API key
     """
-    api_key = secrets.token_hex(16)
+    api_key = generate_api_key()
 
     await mysql.execute("INSERT INTO users (label, api_key) VALUES (%s, %s)", (user_label, api_key,))
 
 
-async def delete_user(user_id: int = None):
+async def update_user(user_id: int, user_label: str = None, rotate_key: bool = False):
+    """
+    Updates an existing user's label or generates new API key
+    """
+    if rotate_key:
+        api_key = generate_api_key()
+        await mysql.execute("UPDATE users SET api_key = %s WHERE id = %s", (api_key, user_id,))
+
+    if user_label is not None:
+        await mysql.execute("UPDATE users SET label = %s WHERE id = %s", (user_label, user_id,))
+
+
+async def delete_user(user_id: int):
     """
     Removes a user based on the user ID
     """

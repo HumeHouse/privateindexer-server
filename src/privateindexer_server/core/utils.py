@@ -1,7 +1,5 @@
-import hashlib
 import os
 import re
-import secrets
 import time
 from datetime import datetime, timezone
 from decimal import Decimal
@@ -9,7 +7,6 @@ from urllib.parse import unquote_to_bytes
 
 import libtorrent as lt
 from unidecode import unidecode
-from fastapi import Request
 
 from privateindexer_server.core import redis
 from privateindexer_server.core.config import TORRENTS_DIR, CATEGORIES, PEER_TIMEOUT
@@ -120,21 +117,6 @@ def time_ago(dt: datetime) -> str:
     return f"on {dt.strftime('%Y-%m-%d')}"
 
 
-def get_client_ip(request: Request) -> str:
-    """
-    Helper to extract the IP address from a request
-    """
-    x_forwarded_for = request.headers.get("x-forwarded-for")
-    if x_forwarded_for:
-        return x_forwarded_for.split(",")[0].strip()
-
-    x_real_ip = request.headers.get("x-real-ip")
-    if x_real_ip:
-        return x_real_ip
-
-    return request.client.host
-
-
 def get_torrent_hashes(torrent_file: str) -> tuple[str, str]:
     """
     Decode the hash v1 and v2 from the torrent info of a torrent file
@@ -182,12 +164,3 @@ async def get_seeders_and_leechers(torrent_id: int) -> tuple[int, int]:
             leechers += 1
 
     return seeders, leechers
-
-
-def generate_sid() -> str:
-    """
-    Generate a simple session ID
-    """
-    nonce = secrets.token_hex(16)
-    raw = f"{nonce}:{time.time()}"
-    return hashlib.sha256(raw.encode()).hexdigest()
