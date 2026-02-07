@@ -50,7 +50,7 @@ async def create_user(user_label: str):
     """
     Adds a new user with a generated API key
     """
-    api_key = secrets.token_hex(16)
+    api_key = secrets.token_hex(32)
 
     await mysql.execute("INSERT INTO users (label, api_key) VALUES (%s, %s)", (user_label, api_key,))
 
