@@ -5,7 +5,8 @@ from fastapi.params import Path
 from fastapi.responses import HTMLResponse, RedirectResponse, PlainTextResponse, JSONResponse
 from fastapi.templating import Jinja2Templates
 
-from privateindexer_server.core import utils, admin_helper, user_helper
+from privateindexer_server.core import admin_helper, user_helper
+from privateindexer_server.core import route_helper
 from privateindexer_server.core.config import SITE_NAME
 from privateindexer_server.core.logger import log
 
@@ -75,7 +76,7 @@ async def login(request: Request, password: str = Form(...)):
     if not admin_helper.verify_admin_password(password):
         return templates.TemplateResponse(name="admin_login.html", context={"error": "Invalid password"}, request=request)
 
-    sid = utils.generate_sid()
+    sid = route_helper.generate_sid()
     SESSIONS[sid] = time.time() + SESSION_TTL
 
     response = RedirectResponse("/admin", status_code=302)
@@ -119,6 +120,22 @@ async def create_user(request: Request, user_label: str = Form(...)):
     log.info(f"[ADMIN] New user created: {user_label}")
 
     return PlainTextResponse("User created")
+
+
+@router.post("/user/{user_id}", response_class=HTMLResponse)
+async def update_user(request: Request, user_id: int = Path(...), user_label: str = Form(None), rotate_key: bool = Form(False)):
+    """
+    Rotates a user's API key
+    """
+    # check if session is valid
+    if not validate_session(request):
+        raise HTTPException(status_code=401, detail="Invalid session")
+
+    await user_helper.update_user(user_id, user_label, rotate_key)
+
+    log.info(f"[ADMIN] User ID updated: {user_id}")
+
+    return PlainTextResponse("User key rotated")
 
 
 @router.delete("/user/{user_id}", response_class=HTMLResponse)

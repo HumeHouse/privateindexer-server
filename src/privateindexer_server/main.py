@@ -6,10 +6,11 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI, Request, Response
 from fastapi.staticfiles import StaticFiles
 
-from privateindexer_server.core import mysql, api, database_check, stale_check, redis, utils, peer_timeout, stats_update, gui, jwt_helper, admin
-from privateindexer_server.core.config import TORRENTS_DIR, HIGH_LATECY_THRESHOLD, APP_VERSION, DATA_DIR, EXTERNAL_TRACKER_URL, EXTERNAL_SERVER_URL, REDIS_HOST, \
-    MYSQL_HOST, MYSQL_ROOT_PASSWORD
+from privateindexer_server.core import mysql, database_check, stale_check, redis, peer_timeout, stats_update, jwt_helper, route_helper
+from privateindexer_server.core.config import TORRENTS_DIR, HIGH_LATECY_THRESHOLD, APP_VERSION, DATA_DIR, EXTERNAL_SERVER_URL, REDIS_HOST, \
+    MYSQL_HOST, MYSQL_ROOT_PASSWORD, EXTERNAL_TRACKER_URL
 from privateindexer_server.core.logger import log
+from privateindexer_server.core.routes import gui, admin, torznab, api_v1, api_v2
 
 
 @asynccontextmanager
@@ -40,7 +41,7 @@ async def lifespan(_: FastAPI):
         log.critical(f"[APP] No external server URL set")
         exit(1)
 
-    # ensure tracker URL set
+    # TODO: deprecated - remove in upcoming release
     if not EXTERNAL_TRACKER_URL:
         log.critical(f"[APP] No external tracker URL set")
         exit(1)
@@ -117,14 +118,18 @@ app = FastAPI(lifespan=lifespan, docs_url=None, redoc_url=None, openapi_url=None
 
 app.mount("/static", StaticFiles(directory="/app/src/static"), name="static")
 
-app.include_router(api.router)
 app.include_router(gui.router)
 app.include_router(admin.router)
+app.include_router(torznab.router)
+app.include_router(api_v2.router)
+
+# TODO: deprecated - remove in upcoming release
+app.include_router(api_v1.router)
 
 
 @app.middleware("http")
 async def track_stats(request: Request, call_next):
-    client_ip = utils.get_client_ip(request)
+    client_ip = route_helper.get_client_ip(request)
 
     # start a redis transaction
     redis_connection = redis.get_connection()

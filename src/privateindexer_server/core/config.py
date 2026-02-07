@@ -1,6 +1,6 @@
 import os
 
-APP_VERSION = "1.10.3"
+APP_VERSION = "1.11.0"
 
 DATA_DIR = "/app/data"
 
@@ -12,6 +12,7 @@ ADMIN_PASSWORD_FILE = os.path.join(DATA_DIR, "admin.password")
 
 CATEGORIES = [{"id": 2000, "name": "Movies"}, {"id": 5000, "name": "TV"}, {"id": 3000, "name": "Audio"}]
 
+# TODO: deprecated - remove in upcoming release
 EXTERNAL_TRACKER_URL = (os.getenv("EXTERNAL_TRACKER_URL")).strip("/")
 ANNOUNCE_TRACKER_URL = f"{EXTERNAL_TRACKER_URL}/announce"
 
