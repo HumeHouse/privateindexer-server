@@ -249,16 +249,17 @@ async def upload(user: User = Depends(api_key_required), category: int = Form(..
         raise HTTPException(status_code=400, detail="File must be torrent file")
 
     # save the data to a temporary file
-    temporary_download_File = tempfile.NamedTemporaryFile()
-    temporary_download_File.write(await torrent_file.read())
-    torrent_download_path = temporary_download_File.name
+    temporary_download_file = tempfile.NamedTemporaryFile()
+    temporary_download_file.write(await torrent_file.read())
+    torrent_download_path = temporary_download_file.name
 
     try:
         # get the infodata from the torrent file
         info = lt.torrent_info(torrent_download_path)
 
         # remove any trackers
-        info.clear_trackers()
+        if len(list(info.trackers())) > 0:
+            info.clear_trackers()
 
         # strip all invalid characters from the torrent name
         normalized_torrent_name = utils.clean_text_filter(torrent_name)
