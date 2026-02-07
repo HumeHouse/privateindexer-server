@@ -160,9 +160,8 @@
                     </td>
         
                     <td>
-                       <span class="api-key" data-key="${user["api_key"]}"></span>
-                        <button class="btn btn-link btn-sm p-0 ms-1 copy-api-key"
-                                title="Copy API key">
+                        <button class="btn btn-link btn-sm p-0 ms-1" title="Copy API key" id="copyInlineKey"
+                            data-key=${user["api_key"]}>
                             <i class="bi bi-clipboard"></i>
                         </button>
                         <button class="btn btn-link btn-sm" data-bs-toggle="modal" data-bs-target="#apiKeyModal"
@@ -256,16 +255,33 @@
         await loadUsers();
     });
 
-    $(document).on("click", ".copy-api-key", function () {
-        const key = $(this).siblings(".api-key").data("key");
-
-        navigator.clipboard.writeText(key);
-
+    $(document).on("click", "#copyInlineKey", function () {
         const btn = $(this);
-        btn.html(`<i class="bi bi-check-lg"></i>`);
-        setTimeout(() => {
-            btn.html('<i class="bi bi-clipboard"></i>');
-        }, 1000);
+        const key = btn.data("key");
+
+        if (btn.data("busy")) return;
+        btn.data("busy", true);
+
+        const resetButton = () => {
+            setTimeout(() => {
+                btn.html('<i class="bi bi-clipboard"></i>');
+                btn.data("busy", false);
+            }, 1200);
+        };
+
+        if (!navigator.clipboard?.writeText) {
+            btn.html('<i class="bi bi-x-lg text-danger"></i>');
+            resetButton();
+            return;
+        }
+
+        navigator.clipboard.writeText(key)
+            .then(() => {
+                btn.html('<i class="bi bi-check-lg text-success"></i>');
+            })
+            .catch(() => {
+                btn.html('<i class="bi bi-x-lg text-danger"></i>');
+            }).finally(resetButton);
     });
 
     $(document).on("click", "#showModalKey", function () {
