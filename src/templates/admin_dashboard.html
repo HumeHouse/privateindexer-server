@@ -100,6 +100,22 @@
         </div>
     </div>
 </div>
+<div class="modal fade modal-lg" id="apiKeyModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">API Key</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <input type="text"
+                       class="form-control font-monospace"
+                       id="fullApiKey"
+                       readonly>
+            </div>
+        </div>
+    </div>
+</div>
 <script src="https://cdn.jsdelivr.net/npm/jquery@3.7.1/dist/jquery.min.js"
         integrity="sha256-/JqT3SQfawRcv/BIHPThkBvs0OEvtFFmqPF/lYI/Cxo=" crossorigin="anonymous"></script>
 <script src="https://cdn.jsdelivr.net/npm/popper.js@1.16.1/dist/umd/popper.min.js"
@@ -148,6 +164,10 @@
                         <button class="btn btn-link btn-sm p-0 ms-1 copy-api-key"
                                 title="Copy API key">
                             <i class="bi bi-clipboard"></i>
+                        </button>
+                        <button class="btn btn-link btn-sm" data-bs-toggle="modal" data-bs-target="#apiKeyModal"
+                            data-key=${user["api_key"]} id="showModalKey">
+                            <i class="bi bi-eye"></i>
                         </button>
                     </td>
         
@@ -246,6 +266,11 @@
         setTimeout(() => {
             btn.html('<i class="bi bi-clipboard"></i>');
         }, 1000);
+    });
+
+    $(document).on("click", "#showModalKey", function () {
+        const key = $(this).data("key");
+        $("#fullApiKey").val(key);
     });
 
     loadUsers();
