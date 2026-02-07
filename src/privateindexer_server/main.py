@@ -6,7 +6,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI, Request, Response
 from fastapi.staticfiles import StaticFiles
 
-from privateindexer_server.core import mysql, database_check, stale_check, redis, utils, peer_timeout, stats_update, jwt_helper
+from privateindexer_server.core import mysql, database_check, stale_check, redis, peer_timeout, stats_update, jwt_helper, route_helper
 from privateindexer_server.core.config import TORRENTS_DIR, HIGH_LATECY_THRESHOLD, APP_VERSION, DATA_DIR, EXTERNAL_SERVER_URL, REDIS_HOST, \
     MYSQL_HOST, MYSQL_ROOT_PASSWORD, EXTERNAL_TRACKER_URL
 from privateindexer_server.core.logger import log
@@ -129,7 +129,7 @@ app.include_router(api_v1.router)
 
 @app.middleware("http")
 async def track_stats(request: Request, call_next):
-    client_ip = utils.get_client_ip(request)
+    client_ip = route_helper.get_client_ip(request)
 
     # start a redis transaction
     redis_connection = redis.get_connection()
