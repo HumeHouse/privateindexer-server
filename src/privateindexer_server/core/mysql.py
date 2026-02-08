@@ -52,7 +52,7 @@ TORRENTS_TABLE_SQL = """
                          `category`         int                                     NOT NULL,
                          `hash_v1`          char(40) COLLATE utf8mb4_general_ci              DEFAULT NULL,
                          `hash_v2`          char(64) COLLATE utf8mb4_general_ci              DEFAULT NULL,
-                         `hash_v2_trunc`    char(40) COLLATE utf8mb4_general_ci              DEFAULT NULL,   
+                         `hash_v2_trunc`    char(40) COLLATE utf8mb4_general_ci              DEFAULT NULL,
                          `files`            int                                     NOT NULL,
                          `grabs`            int                                              DEFAULT 0,
                          `added_on`         datetime                                NOT NULL DEFAULT CURRENT_TIMESTAMP,
