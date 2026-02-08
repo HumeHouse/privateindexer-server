@@ -202,8 +202,11 @@ async def grab(user: User = Depends(AccessTokenValidator("grab")), infohash: str
         log.error(f"[GRAB] Failed to read torrent with hash '{infohash}: {e}")
         raise HTTPException(status_code=500, detail="Internal server error")
 
-    # increment the grab counter
+    # increment the torrent grab counter
     await mysql.execute("UPDATE torrents SET grabs = grabs + 1 WHERE id=%s", (torrent["id"],))
+
+    # increment the user grab counter
+    await mysql.execute("UPDATE users SET grabs = grabs + 1 WHERE id=%s", (user.user_id,))
 
     log.info(f"[GRAB] User '{user.user_label}' grabbed torrent by hash '{infohash}'")
 
