@@ -199,7 +199,7 @@ async def grab(user: User = Depends(AccessTokenValidator("grab")), infohash: str
         with open(torrent_file, "rb") as f:
             bencoded = f.read()
     except Exception as e:
-        log.error(f"[GRAB] Failed to add tracker to torrent with hash '{infohash}: {e}")
+        log.error(f"[GRAB] Failed to read torrent with hash '{infohash}: {e}")
         raise HTTPException(status_code=500, detail="Internal server error")
 
     # increment the grab counter

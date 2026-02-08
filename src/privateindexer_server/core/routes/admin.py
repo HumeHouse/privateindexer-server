@@ -1,11 +1,12 @@
 import time
+import datetime
 
 from fastapi import Request, APIRouter, Form, HTTPException
 from fastapi.params import Path
 from fastapi.responses import HTMLResponse, RedirectResponse, PlainTextResponse, JSONResponse
 from fastapi.templating import Jinja2Templates
 
-from privateindexer_server.core import admin_helper, user_helper
+from privateindexer_server.core import admin_helper, user_helper, utils
 from privateindexer_server.core import route_helper
 from privateindexer_server.core.config import SITE_NAME
 from privateindexer_server.core.logger import log
@@ -101,7 +102,9 @@ async def get_users(request: Request):
     # loop through each user and convert the datetime to a basic string
     for user in users:
         if user.get("last_seen"):
-            user["last_seen"] = user["last_seen"].strftime("%Y-%m-%d %H:%M:%S %Z")
+            tzinfo = datetime.datetime.now().astimezone().tzinfo
+            user["last_seen_ago"] = utils.time_ago(user["last_seen"])
+            user["last_seen"] = user["last_seen"].replace(tzinfo=tzinfo).strftime("%Y-%m-%d %I:%M:%S %p %Z")
 
     return JSONResponse(users)
 
