@@ -63,7 +63,7 @@ async def periodic_stats_update_task():
                                                FROM torrents
                                                GROUP BY added_by_user_id) t ON u.id = t.user_id
                                 SET u.torrents_uploaded = COALESCE(t.torrents_uploaded, 0),
-                                    u.grabs             = COALESCE(t.grabs, 0)
+                                    u.popularity        = COALESCE(t.grabs, 0)
                                 WHERE TRUE
                                 """)
 

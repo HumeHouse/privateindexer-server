@@ -18,6 +18,7 @@ USERS_TABLE_SQL = """
                       `downloaded`        bigint unsigned                         NOT NULL DEFAULT 0,
                       `uploaded`          bigint unsigned                         NOT NULL DEFAULT 0,
                       `torrents_uploaded` int unsigned                            NOT NULL DEFAULT 0,
+                      `popularity`        int unsigned                            NOT NULL DEFAULT 0,
                       `grabs`             int unsigned                            NOT NULL DEFAULT 0,
                       `seeding`           int unsigned                            NOT NULL DEFAULT 0,
                       `leeching`          int unsigned                            NOT NULL DEFAULT 0,
