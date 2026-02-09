@@ -1,6 +1,6 @@
 import os
 
-APP_VERSION = "1.11.1"
+APP_VERSION = "1.11.2"
 
 DATA_DIR = "/app/data"
 
