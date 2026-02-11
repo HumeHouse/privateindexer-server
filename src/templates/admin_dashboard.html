@@ -167,8 +167,7 @@
         }
 
         userTable.html(users.map(user => {
-            const reachable = user["reachable"] === 1;
-
+            let reachable = user["reachable"];
             return `
                 <tr>
                     <td>${user["id"]}</td>
@@ -178,8 +177,8 @@
                     </td>
         
                     <td>
-                        <span class="badge ${reachable ? "bg-success" : "bg-danger"}">
-                            ${reachable ? "● Reachable" : "● Unreachable"}
+                        <span class="badge ${reachable === -1 ? "bg-secondary" : reachable === 1 ? "bg-success" : "bg-danger"}">
+                            ${reachable === -1 ? "Unknown" : reachable === 1 ? "Reachable" : "Unreachable"}
                         </span>
                     </td>
 
