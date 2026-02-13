@@ -26,7 +26,7 @@ async def check_clients():
 
         # check if no IP is known for this user
         if last_ip is None:
-            log.debug(f"[CLIENT-CHECK] User is in unknown status: {user}")
+            log.debug(f"[CLIENT-CHECK] User is in unknown status: {user_id}")
             unknown += 1
 
             # update status in database if necessary
@@ -44,9 +44,9 @@ async def check_clients():
             with socket.create_connection((ip_address, port), timeout=5):
                 reachable += 1
                 new_status = 1
-                log.debug(f"[CLIENT-CHECK] User is reachable: {user}")
+                log.debug(f"[CLIENT-CHECK] User is reachable: {user_id}")
         except (socket.timeout, ConnectionRefusedError, OSError):
-            log.debug(f"[CLIENT-CHECK] User is unreachable: {user}")
+            log.debug(f"[CLIENT-CHECK] User is unreachable: {user_id}")
             unreachable += 1
             pass
 

@@ -1,14 +1,12 @@
 import asyncio
-import os
 import time
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request, Response
 from fastapi.staticfiles import StaticFiles
 
-from privateindexer_server.core import mysql, database_check, stale_check, redis, peer_timeout, stats_update, jwt_helper, route_helper, client_check
-from privateindexer_server.core.config import TORRENTS_DIR, HIGH_LATECY_THRESHOLD, APP_VERSION, DATA_DIR, EXTERNAL_SERVER_URL, REDIS_HOST, \
-    MYSQL_HOST, MYSQL_ROOT_PASSWORD, EXTERNAL_TRACKER_URL
+from privateindexer_server.core import mysql, database_check, stale_check, redis, peer_timeout, stats_update, jwt_helper, route_helper, client_check, config
+from privateindexer_server.core.config import HIGH_LATECY_THRESHOLD, APP_VERSION
 from privateindexer_server.core.logger import log
 from privateindexer_server.core.routes import gui, admin, torznab, api_v1, api_v2
 
@@ -16,35 +14,6 @@ from privateindexer_server.core.routes import gui, admin, torznab, api_v1, api_v
 @asynccontextmanager
 async def lifespan(_: FastAPI):
     log.info(f"[APP] Starting PrivateIndexer server v{APP_VERSION}")
-
-    # check if data directory exists
-    if not os.path.isdir(DATA_DIR):
-        log.critical(f"[APP] Data directory does not exist: {DATA_DIR}")
-        exit(1)
-
-    # check if data directory has correct permissions
-    try:
-        test_file = os.path.join(DATA_DIR, ".write_test")
-        with open(test_file, "w"):
-            pass
-        os.unlink(test_file)
-    except OSError:
-        log.critical(f"[APP] Data directory is not writable: {DATA_DIR}")
-        exit(1)
-
-    # try to create torrents directory
-    log.info(f"[APP] Torrent data directory: {TORRENTS_DIR}")
-    os.makedirs(TORRENTS_DIR, exist_ok=True)
-
-    # ensure server URL set
-    if not EXTERNAL_SERVER_URL:
-        log.critical(f"[APP] No external server URL set")
-        exit(1)
-
-    # TODO: deprecated - remove in upcoming release
-    if not EXTERNAL_TRACKER_URL:
-        log.critical(f"[APP] No external tracker URL set")
-        exit(1)
 
     # get/create a JWT key used for API
     try:
@@ -54,27 +23,12 @@ async def lifespan(_: FastAPI):
         log.error(f"[APP] Exception while reading/creating JWT key: {e}")
         exit(1)
 
-    # ensure Redis server host is set
-    if not REDIS_HOST:
-        log.critical(f"[APP] No Redis server host set")
-        exit(1)
-
     # test Redis connection
     try:
         await redis.get_connection()
         log.info("[APP] Connected to Redis")
     except Exception as e:
         log.error(f"[APP] Exception while connecting Redis: {e}")
-        exit(1)
-
-    # ensure MySQL host is set
-    if not MYSQL_HOST:
-        log.critical(f"[APP] No MySQL server host set")
-        exit(1)
-
-    # ensure MySQL root password is set
-    if not MYSQL_ROOT_PASSWORD:
-        log.critical(f"[APP] No MySQL root password set")
         exit(1)
 
     # test MySQL connection and set up database structure
@@ -113,6 +67,8 @@ async def lifespan(_: FastAPI):
 
     await redis.close_connection()
 
+# validate Python environment
+config.validate_environment()
 
 app = FastAPI(lifespan=lifespan, docs_url=None, redoc_url=None, openapi_url=None,
               title=f"PrivateIndexer Server", version=APP_VERSION)
