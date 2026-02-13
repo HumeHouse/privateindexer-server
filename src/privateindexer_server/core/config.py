@@ -49,3 +49,59 @@ MYSQL_DB = os.getenv("MYSQL_DB", "privateindexer")
 
 MYSQL_MAX_RETY = 5
 MYSQL_RETRY_BACKOFF = 0.2
+
+
+def validate_environment():
+    """
+    Check environment variables for validity and exit on errors
+    """
+    log.info("[APP] Validating environment")
+
+    # check if data directory exists
+    if not os.path.isdir(DATA_DIR):
+        log.critical(f"[APP] Data directory does not exist: {DATA_DIR}")
+        exit(1)
+
+    # check if data directory has correct permissions
+    try:
+        test_file = os.path.join(DATA_DIR, ".write_test")
+        with open(test_file, "w"):
+            pass
+        os.unlink(test_file)
+    except OSError:
+        log.critical(f"[APP] Data directory is not writable: {DATA_DIR}")
+        exit(1)
+
+    # try to create torrents directory
+    try:
+        os.makedirs(TORRENTS_DIR, exist_ok=True)
+    except Exception as e:
+        log.error(f"[APP] Exception while creating torrent data directory: {e}")
+        exit(1)
+
+    # ensure server URL set
+    if not EXTERNAL_SERVER_URL:
+        log.critical(f"[APP] No external server URL set")
+        exit(1)
+
+    # TODO: deprecated - remove in upcoming release
+    if not EXTERNAL_TRACKER_URL:
+        log.critical(f"[APP] No external tracker URL set")
+        exit(1)
+
+    # ensure Redis server host is set
+    if not REDIS_HOST:
+        log.critical(f"[APP] No Redis server host set")
+        exit(1)
+
+    # ensure MySQL host is set
+    if not MYSQL_HOST:
+        log.critical(f"[APP] No MySQL server host set")
+        exit(1)
+
+    # ensure MySQL root password is set
+    if not MYSQL_ROOT_PASSWORD:
+        log.critical(f"[APP] No MySQL root password set")
+        exit(1)
+
+    log.info("[APP] Environment is valid")
