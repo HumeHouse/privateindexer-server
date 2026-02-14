@@ -2,7 +2,7 @@ import os
 
 from privateindexer_server.core.logger import log
 
-APP_VERSION = "1.11.4"
+APP_VERSION = "1.11.5"
 
 DATA_DIR = "/app/data"
 
@@ -13,10 +13,6 @@ JWT_KEY_FILE = os.path.join(DATA_DIR, "jwt.key")
 ADMIN_PASSWORD_FILE = os.path.join(DATA_DIR, "admin.password")
 
 CATEGORIES = [{"id": 2000, "name": "Movies"}, {"id": 5000, "name": "TV"}, {"id": 3000, "name": "Audio"}]
-
-# TODO: deprecated - remove in upcoming release
-EXTERNAL_TRACKER_URL = (os.getenv("EXTERNAL_TRACKER_URL", "")).strip("/")
-ANNOUNCE_TRACKER_URL = f"{EXTERNAL_TRACKER_URL}/announce"
 
 EXTERNAL_SERVER_URL = (os.getenv("EXTERNAL_SERVER_URL", "")).strip("/")
 
@@ -84,11 +80,6 @@ def validate_environment():
     # ensure server URL set
     if not EXTERNAL_SERVER_URL:
         log.critical(f"[CONFIG] No external server URL set")
-        exit(1)
-
-    # TODO: deprecated - remove in upcoming release
-    if not EXTERNAL_TRACKER_URL:
-        log.critical(f"[CONFIG] No external tracker URL set")
         exit(1)
 
     # ensure Redis server host is set
