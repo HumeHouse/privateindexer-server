@@ -27,8 +27,20 @@ def validate_session(request: Request) -> bool:
     # get the SID cookie
     sid = request.cookies.get("SID")
 
-    # check if session cookie exists and is stored and not expired
-    return sid is not None and sid in SESSIONS and time.time() < SESSIONS[sid]
+    # check session ID validity
+    if not sid or sid not in SESSIONS:
+        return False
+
+    # check expiration of session
+    if time.time() > SESSIONS[sid]:
+        # remove expired sessions
+        del SESSIONS[sid]
+        return False
+
+    # refresh session lifetime
+    SESSIONS[sid] = time.time() + SESSION_TTL
+
+    return True
 
 
 @router.get("/", response_class=HTMLResponse)
