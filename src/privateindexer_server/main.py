@@ -8,7 +8,7 @@ from fastapi.staticfiles import StaticFiles
 from privateindexer_server.core import mysql, database_check, stale_check, redis, peer_timeout, stats_update, jwt_helper, route_helper, client_check, config
 from privateindexer_server.core.config import HIGH_LATECY_THRESHOLD, APP_VERSION
 from privateindexer_server.core.logger import log
-from privateindexer_server.core.routes import gui, admin, torznab, api_v1, api_v2
+from privateindexer_server.core.routes import gui, admin, torznab, api_v2
 
 
 @asynccontextmanager
@@ -67,6 +67,7 @@ async def lifespan(_: FastAPI):
 
     await redis.close_connection()
 
+
 # validate Python environment
 config.validate_environment()
 
@@ -79,9 +80,6 @@ app.include_router(gui.router)
 app.include_router(admin.router)
 app.include_router(torznab.router)
 app.include_router(api_v2.router)
-
-# TODO: deprecated - remove in upcoming release
-app.include_router(api_v1.router)
 
 
 @app.middleware("http")
