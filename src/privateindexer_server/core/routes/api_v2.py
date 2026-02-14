@@ -150,11 +150,12 @@ async def get_user_stats(user: User = Depends(api_key_required)):
     user_id = user.user_id
 
     # pull all the user stats from the database
-    stats_query = "SELECT torrents_uploaded, grabs, downloaded, uploaded, seeding, leeching FROM users WHERE id = %s"
+    stats_query = "SELECT torrents_uploaded, grabs, popularity, downloaded, uploaded, seeding, leeching FROM users WHERE id = %s"
     stats = await mysql.fetch_one(stats_query, (user_id,))
 
     torrents_uploaded = int(stats["torrents_uploaded"] or 0)
     grabs = int(stats["grabs"] or 0)
+    popularity = int(stats["popularity"] or 0)
     downloaded = stats["downloaded"] or 0
     uploaded = stats["uploaded"] or 0
     seeding = int(stats["seeding"] or 0)
@@ -170,7 +171,7 @@ async def get_user_stats(user: User = Depends(api_key_required)):
 
     return JSONResponse(
         {"user": user.user_label, "torrents_added_total": torrents_uploaded, "currently_seeding": seeding, "currently_leeching": leeching, "grabs_total": grabs,
-         "total_download": downloaded, "total_upload": uploaded, "server_ratio": server_ratio, })
+         "popularity": popularity, "total_download": downloaded, "total_upload": uploaded, "server_ratio": server_ratio, })
 
 
 @router.get("/grab")
