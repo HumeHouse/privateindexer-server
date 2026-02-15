@@ -10,10 +10,9 @@ import libtorrent as lt
 from fastapi import HTTPException, Query, Request, UploadFile, File, Form, APIRouter, Depends
 from fastapi.responses import Response, PlainTextResponse, JSONResponse
 
+from privateindexer_server.core import logger
 from privateindexer_server.core import mysql, utils, redis, route_helper
 from privateindexer_server.core.config import CATEGORIES, SYNC_BATCH_SIZE
-from privateindexer_server.core.jwt_helper import AccessTokenValidator
-from privateindexer_server.core.logger import log
 from privateindexer_server.core.route_helper import api_key_required, latency_threshold
 from privateindexer_server.core.user_helper import User
 
@@ -33,7 +32,7 @@ async def get_analytics(user: User = Depends(api_key_required)):
     """
     Called by tracking apps like Zabbix to obtain information about the status of the server
     """
-    log.debug(f"[ANALYTICS] User '{user.user_label}' requested analytics")
+    logger.channel("analytics").debug(f"User '{user.user_label}' requested analytics")
     try:
         redis_connection = redis.get_connection()
 
@@ -91,7 +90,7 @@ async def get_analytics(user: User = Depends(api_key_required)):
         leeching_torrents = sum(1 for v in torrents.values() if v["leechers"])
 
     except Exception as e:
-        log.error(f"[ANALYTICS] Failed to get analytics from Redis: {e}")
+        logger.channel("analytics").exception(f"Failed to get analytics from Redis: {e}")
         return JSONResponse({})
 
     # fetch all user data transfer statistics
@@ -127,9 +126,9 @@ async def user_login_check(user: User = Depends(api_key_required), request: Requ
     try:
         with socket.create_connection((announce_ip, port), timeout=5):
             reachable = True
-            log.info(f"[USER] User '{user.user_label}' ({announce_ip}:{port}) connected with PrivateIndexer client v{v}")
+            logger.channel("user").info(f"User '{user.user_label}' ({announce_ip}:{port}) connected with PrivateIndexer client v{v}")
     except (socket.timeout, ConnectionRefusedError, OSError):
-        log.warning(f"[USER] User '{user.user_label}' ({announce_ip}:{port} - UNREACHABLE) connected with PrivateIndexer client v{v}")
+        logger.channel("user").warning(f"User '{user.user_label}' ({announce_ip}:{port} - UNREACHABLE) connected with PrivateIndexer client v{v}")
         pass
 
     # update the user's entry with the data
@@ -145,7 +144,7 @@ async def get_user_stats(user: User = Depends(api_key_required)):
     """
     Called by users (on PrivateIndexer clients) to obtain their stats from the server side
     """
-    log.debug(f"[USER] User '{user.user_label}' requested statistics")
+    logger.channel("user").debug(f"User '{user.user_label}' requested statistics")
 
     user_id = user.user_id
 
@@ -182,7 +181,7 @@ async def grab(user: User = Depends(AccessTokenValidator("grab")), infohash: str
     # search for the infohash in the database
     torrent = await mysql.fetch_one("SELECT id, hash_v2 FROM torrents WHERE hash_v2 = %s LIMIT 1", (infohash,))
     if not torrent:
-        log.debug(f"[GRAB] User '{user.user_label}' tried to grab invalid torrent with hash '{infohash}'")
+        logger.channel("grab").debug(f"User '{user.user_label}' tried to grab invalid torrent with hash '{infohash}'")
         raise HTTPException(status_code=404, detail="Torrent not found")
 
     hash_v2 = torrent["hash_v2"]
@@ -190,7 +189,7 @@ async def grab(user: User = Depends(AccessTokenValidator("grab")), infohash: str
     # ensure the torrent file exists on disk
     torrent_file = utils.get_torrent_file(hash_v2)
     if not os.path.exists(torrent_file):
-        log.critical(f"[GRAB] Torrent file missing for hash {infohash}")
+        logger.channel("grab").critical(f"Torrent file missing for hash {infohash}")
         raise HTTPException(status_code=404, detail="Torrent file missing")
 
     torrent_filename = os.path.basename(torrent_file)
@@ -200,7 +199,7 @@ async def grab(user: User = Depends(AccessTokenValidator("grab")), infohash: str
         with open(torrent_file, "rb") as f:
             bencoded = f.read()
     except Exception as e:
-        log.error(f"[GRAB] Failed to read torrent with hash '{infohash}: {e}")
+        logger.channel("grab").exception(f"Failed to read torrent with hash '{infohash}: {e}")
         raise HTTPException(status_code=500, detail="Internal server error")
 
     # increment the torrent grab counter
@@ -209,7 +208,7 @@ async def grab(user: User = Depends(AccessTokenValidator("grab")), infohash: str
     # increment the user grab counter
     await mysql.execute("UPDATE users SET grabs = grabs + 1 WHERE id=%s", (user.user_id,))
 
-    log.info(f"[GRAB] User '{user.user_label}' grabbed torrent by hash '{infohash}'")
+    logger.channel("grab").info(f"User '{user.user_label}' grabbed torrent by hash '{infohash}'")
 
     # reply with the bencoded response over x-bittorrent protocol
     return Response(content=bencoded, media_type="application/x-bittorrent", headers={"Content-Disposition": f'attachment; filename="{torrent_filename}"'})
@@ -223,10 +222,10 @@ async def validate(user: User = Depends(api_key_required), infohash: str = Query
     # search for the infohash in the database
     torrent = await mysql.fetch_one("SELECT id FROM torrents WHERE hash_v2 = %s LIMIT 1", (infohash,))
     if not torrent:
-        log.debug(f"[VALIDATE] User '{user.user_label}' tried to validate torrent with invalid hash '{infohash}'")
+        logger.channel("validate").debug(f"User '{user.user_label}' tried to validate torrent with invalid hash '{infohash}'")
         raise HTTPException(status_code=404, detail="Torrent not found")
 
-    log.info(f"[VALIDATE] User '{user.user_label}' successfully validated torrent by hash '{infohash}'")
+    logger.channel("validate").info(f"User '{user.user_label}' successfully validated torrent by hash '{infohash}'")
 
     # reply with success message
     return PlainTextResponse("Torrent is valid")
@@ -244,12 +243,12 @@ async def upload(user: User = Depends(api_key_required), category: int = Form(..
     # ensure the client is using a valid torznab category
     category_id_list = [cat["id"] for cat in CATEGORIES]
     if category not in category_id_list:
-        log.warning(f"[UPLOAD] User '{user_label}' tried to upload with invalid category: {category}")
+        logger.channel("upload").warning(f"User '{user_label}' tried to upload with invalid category: {category}")
         raise HTTPException(status_code=400, detail="Invalid category")
 
     # make sure this is actually a torrent file
     if not torrent_file.filename.endswith(".torrent"):
-        log.warning(f"[UPLOAD] User '{user_label}' tried to upload non-torrent file: {torrent_file.filename}")
+        logger.channel("upload").warning(f"User '{user_label}' tried to upload non-torrent file: {torrent_file.filename}")
         raise HTTPException(status_code=400, detail="File must be torrent file")
 
     # save the data to a temporary file
@@ -282,7 +281,7 @@ async def upload(user: User = Depends(api_key_required), category: int = Form(..
         season_match, episode_match = utils.extract_season_episode(torrent_name)
     except Exception as e:
         os.unlink(torrent_download_path)
-        log.error(f"[UPLOAD] Failed to process torrent file sent by '{user_label}': '{torrent_file.filename}': {e}")
+        logger.channel("upload").exception(f"Failed to process torrent file sent by '{user_label}': '{torrent_file.filename}': {e}")
         raise HTTPException(status_code=400, detail="Invalid torrent file")
 
     # add optional indexing parameters
@@ -305,11 +304,11 @@ async def upload(user: User = Depends(api_key_required), category: int = Form(..
                 "UPDATE torrents SET name = %s, normalized_name = %s, hash_v1 = %s, hash_v2 = %s, hash_v2_trunc = %s, season = %s, episode = %s, imdbid = %s, tmdbid = %s, tvdbid = %s, artist = %s, album = %s, last_seen = NOW() WHERE id = %s",
                 (torrent_name, normalized_torrent_name, hash_v1, hash_v2, hash_v2_truncated, season_match, episode_match, imdbid, tmdbid, tvdbid, artist, album,
                  existing["id"]))
-            log.info(f"[UPLOAD] User '{user_label}' re-uploaded torrent, renamed to '{torrent_name}'")
+            logger.channel("upload").info(f"User '{user_label}' re-uploaded torrent, renamed to '{torrent_name}'")
 
         # ignore the upload if this user was no the original uploader
         else:
-            log.debug(f"[UPLOAD] User '{user_label}' uploaded duplicate torrent: '{torrent_name}'")
+            logger.channel("upload").debug(f"User '{user_label}' uploaded duplicate torrent: '{torrent_name}'")
 
         # delete the temporary file
         os.unlink(torrent_download_path)
@@ -332,7 +331,7 @@ async def upload(user: User = Depends(api_key_required), category: int = Form(..
                         (torrent_name, normalized_torrent_name, season_match, episode_match, imdbid, tmdbid, tvdbid, artist, album, size, category,
                          hash_v1, hash_v2, hash_v2_truncated, file_count, user_id))
 
-    log.info(f"[UPLOAD] User '{user_label}' uploaded torrent '{torrent_name}'")
+    logger.channel("upload").info(f"User '{user_label}' uploaded torrent '{torrent_name}'")
 
     return PlainTextResponse("Successfully uploaded torrent")
 
@@ -406,7 +405,7 @@ async def sync(user: User = Depends(api_key_required), request: Request = None):
 
         await mysql.execute(update_query, params + [user.user_id])
 
-    log.debug(f"[SYNC] User '{user.user_label}' performed sync: {len(missing_ids)} missing (sent {len(torrents)})")
+    logger.channel("sync").debug(f"User '{user.user_label}' performed sync: {len(missing_ids)} missing (sent {len(torrents)})")
 
     # reply with a list of local torrent IDs that are not currently tracked in the server database
     return JSONResponse({"missing_ids": missing_ids})

@@ -6,9 +6,9 @@ from datetime import datetime, timezone, timedelta
 import jwt
 from fastapi import Query, HTTPException
 
+from privateindexer_server.core import logger
 from privateindexer_server.core import user_helper
 from privateindexer_server.core.config import ACCESS_TOKEN_EXPIRATION, JWT_KEY_FILE
-from privateindexer_server.core.logger import log
 from privateindexer_server.core.user_helper import User
 
 JWT_OPTIONS = {
@@ -35,12 +35,12 @@ class AccessTokenValidator:
         user_id = validate_access_token(access_token, self.purpose)
 
         if user_id == -1:
-            log.warning(f"[USER] Invalid or expired access token used: {access_token}")
+            logger.channel("user").warning(f"Invalid or expired access token used: {access_token}")
             raise HTTPException(status_code=401, detail="Invalid or expired access token")
 
         user = await user_helper.get_user(user_id=user_id)
         if not user:
-            log.warning(f"[USER] Invalid user ID: {user_id}")
+            logger.channel("user").warning(f"Invalid user ID: {user_id}")
             raise HTTPException(status_code=401, detail="Invalid or expired access token")
         return user
 
@@ -62,7 +62,7 @@ def get_jwt_key() -> str:
         with open(JWT_KEY_FILE, "w") as f:
             f.write(_jwt_key)
 
-        log.debug(f"[JWT] Created new JWT key and saved to disk")
+        logger.channel("jwt").debug(f"Created new JWT key and saved to disk")
         return _jwt_key
 
     # if file does exist, try to read the key
@@ -70,7 +70,7 @@ def get_jwt_key() -> str:
         with open(JWT_KEY_FILE, "r") as f:
             _jwt_key = f.read()
     except Exception as e:
-        log.error(f"[JWT] Exception while loading jwt.key: {e}")
+        logger.channel("jwt").exception(f"Exception while loading jwt.key: {e}")
         _jwt_key = None
 
     return _jwt_key

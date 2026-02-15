@@ -8,9 +8,9 @@ from urllib.parse import unquote_to_bytes
 import libtorrent as lt
 from unidecode import unidecode
 
+from privateindexer_server.core import logger
 from privateindexer_server.core import redis
 from privateindexer_server.core.config import TORRENTS_DIR, CATEGORIES, PEER_TIMEOUT
-from privateindexer_server.core.logger import log
 
 SEASON_EPISODE_REGEX = re.compile(r"S(?P<season>\d{1,4})(?:E(?P<episode>\d{1,3}))?|(?P<season_alt>\d{1,4})x(?P<episode_alt>\d{1,3})", re.IGNORECASE, )
 
@@ -127,7 +127,7 @@ def get_torrent_hashes(torrent_file: str) -> tuple[str, str]:
 
         return str(hashes.v1).lower(), str(hashes.v2).lower()
     except Exception as e:
-        log.error(f"[TORRENT] Error getting hashes for '{torrent_file}': {e}")
+        logger.channel("torrent").exception(f"Error getting hashes for '{torrent_file}': {e}")
         return "", ""
 
 

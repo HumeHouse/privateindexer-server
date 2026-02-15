@@ -2,10 +2,10 @@ from fastapi import HTTPException, Request, APIRouter, Depends
 from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
 
+from privateindexer_server.core import logger
 from privateindexer_server.core import mysql, utils
 from privateindexer_server.core.config import SITE_NAME
 from privateindexer_server.core.jwt_helper import AccessTokenValidator
-from privateindexer_server.core.logger import log
 from privateindexer_server.core.user_helper import User
 
 router = APIRouter()
@@ -31,7 +31,7 @@ async def view(torrent_id: int, request: Request, user: User = Depends(AccessTok
         seeders, leechers = await utils.get_seeders_and_leechers(torrent_id)
     except Exception as e:
         seeders = leechers = 0
-        log.error(f"[VIEW] Failed to fetch seeders/leechers from Redis: {e}")
+        logger.channel("view").exception(f"Failed to fetch seeders/leechers from Redis: {e}")
 
     torrent["seeders"] = seeders
     torrent["leechers"] = leechers
@@ -54,7 +54,7 @@ async def view(torrent_id: int, request: Request, user: User = Depends(AccessTok
     # make the torrent last seen timestamp pretty
     torrent["last_seen"] = utils.time_ago(torrent["last_seen"])
 
-    log.info(f"[VIEW] User '{user.user_label}' viewed torrent ID {torrent_id}")
+    logger.channel("view").info(f"User '{user.user_label}' viewed torrent ID {torrent_id}")
 
     # display the HTML Jinja template with torrent object context
     return templates.TemplateResponse(name="view_torrent.html", context={"torrent": torrent, }, request=request)
