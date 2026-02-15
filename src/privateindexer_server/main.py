@@ -5,41 +5,41 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI, Request, Response
 from fastapi.staticfiles import StaticFiles
 
+from privateindexer_server.core import logger
 from privateindexer_server.core import mysql, database_check, stale_check, redis, peer_timeout, stats_update, jwt_helper, route_helper, client_check, config
 from privateindexer_server.core.config import HIGH_LATECY_THRESHOLD, APP_VERSION
-from privateindexer_server.core.logger import log
 from privateindexer_server.core.routes import gui, admin, torznab, api_v2
 
 
 @asynccontextmanager
 async def lifespan(_: FastAPI):
-    log.info(f"[APP] Starting PrivateIndexer server v{APP_VERSION}")
+    logger.channel("app").info(f"Starting PrivateIndexer server v{APP_VERSION}")
 
     # get/create a JWT key used for API
     try:
         jwt_helper.get_jwt_key()
-        log.info("[APP] Configured JWT key")
+        logger.channel("app").info("Configured JWT key")
     except Exception as e:
-        log.error(f"[APP] Exception while reading/creating JWT key: {e}")
+        logger.channel("app").exception(f"Exception while reading/creating JWT key: {e}")
         exit(1)
 
     # test Redis connection
     try:
         await redis.get_connection()
-        log.info("[APP] Connected to Redis")
+        logger.channel("app").info("Connected to Redis")
     except Exception as e:
-        log.error(f"[APP] Exception while connecting Redis: {e}")
+        logger.channel("app").exception(f"Exception while connecting Redis: {e}")
         exit(1)
 
     # test MySQL connection and set up database structure
     try:
         await mysql.setup_database()
-        log.info("[APP] Connected to MySQL")
+        logger.channel("app").info("Connected to MySQL")
     except Exception as e:
-        log.error(f"[APP] Exception while setting up MySQL: {e}")
+        logger.channel("app").exception(f"Exception while setting up MySQL: {e}")
         exit(1)
 
-    log.info("[APP] Starting periodic tasks")
+    logger.channel("app").info("Starting periodic tasks")
 
     # start all periodic server tasks
     app_tasks = [
@@ -50,11 +50,11 @@ async def lifespan(_: FastAPI):
         asyncio.create_task(client_check.periodic_client_check_task()),
     ]
 
-    log.info("[APP] API server started on 0.0.0.0:8081")
+    logger.channel("app").info("API server started on 0.0.0.0:8081")
 
     yield
 
-    log.info("[APP] Shutting down PrivateIndexer server")
+    logger.channel("app").info("Shutting down PrivateIndexer server")
 
     # stop all periodic tasks
     for task in app_tasks:
@@ -115,9 +115,9 @@ async def track_stats(request: Request, call_next):
 
     # check the endpoint execution time for high latency
     if duration > threshold:
-        log.warning(f"[APP] High response time ({duration} ms) - [{request_method}] {request_string}")
+        logger.channel("app").warning(f"High response time ({duration} ms) - [{request_method}] {request_string}")
     else:
-        log.debug(f"[APP] Request ({duration} ms) - [{request_method}] {request_string}")
+        logger.channel("app").debug(f"Request ({duration} ms) - [{request_method}] {request_string}")
 
     # add the server-side content length to the counter
     if response.headers.get("content-length"):
