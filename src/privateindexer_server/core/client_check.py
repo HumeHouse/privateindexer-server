@@ -4,7 +4,7 @@ import socket
 
 from privateindexer_server.core import mysql
 from privateindexer_server.core.config import CLIENT_CHECK_INTERVAL
-from privateindexer_server.core.logger import log
+from privateindexer_server.core import logger
 
 
 async def check_clients():
@@ -26,7 +26,7 @@ async def check_clients():
 
         # check if no IP is known for this user
         if last_ip is None:
-            log.debug(f"[CLIENT-CHECK] User is in unknown status: {user_id}")
+            logger.channel("client-check").debug(f"User is in unknown status: {user_id}")
             unknown += 1
 
             # update status in database if necessary
@@ -44,9 +44,9 @@ async def check_clients():
             with socket.create_connection((ip_address, port), timeout=5):
                 reachable += 1
                 new_status = 1
-                log.debug(f"[CLIENT-CHECK] User is reachable: {user_id}")
+                logger.channel("client-check").debug(f"User is reachable: {user_id}")
         except (socket.timeout, ConnectionRefusedError, OSError):
-            log.debug(f"[CLIENT-CHECK] User is unreachable: {user_id}")
+            logger.channel("client-check").debug(f"User is unreachable: {user_id}")
             unreachable += 1
             pass
 
@@ -61,16 +61,16 @@ async def periodic_client_check_task():
     """
     Task to check user client reachability
     """
-    log.debug("[CLIENT-CHECK] Task loop started")
+    logger.channel("client-check").debug("Task loop started")
     while True:
         try:
-            log.debug("[CLIENT-CHECK] Running periodic client check")
+            logger.channel("client-check").debug("Running periodic client check")
             before = datetime.datetime.now()
 
             reachable, unreachable, unknown = await check_clients()
 
             delta = datetime.datetime.now() - before
-            log.debug(f"[CLIENT-CHECK] Client check complete ({delta}): {reachable} reachable, {unreachable} unreachable, {unknown} unknown")
+            logger.channel("client-check").debug(f"Client check complete ({delta}): {reachable} reachable, {unreachable} unreachable, {unknown} unknown")
         except Exception as e:
-            log.error(f"[CLIENT-CHECK] Error during periodic client check: {e}")
+            logger.channel("client-check").error(f"Error during periodic client check: {e}")
         await asyncio.sleep(CLIENT_CHECK_INTERVAL)

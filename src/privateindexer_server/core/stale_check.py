@@ -4,17 +4,17 @@ import os
 
 from privateindexer_server.core import mysql, utils
 from privateindexer_server.core.config import STALE_CHECK_INTERVAL, STALE_THRESHOLD
-from privateindexer_server.core.logger import log
+from privateindexer_server.core import logger
 
 
 async def periodic_stale_check_task():
     """
     Task to purge stale/inactive torrents from database
     """
-    log.debug("[STALE-CHECK] Task loop started")
+    logger.channel("stale-check").debug("Task loop started")
     while True:
         try:
-            log.info("[STALE-CHECK] Running stale torrents check")
+            logger.channel("stale-check").info("Running stale torrents check")
             before = datetime.datetime.now()
 
             # fetch torrents which have not been seen in at least STALE_THRESHOLD number of seconds
@@ -35,7 +35,7 @@ async def periodic_stale_check_task():
                 removed_torrents += 1
 
             delta = datetime.datetime.now() - before
-            log.info(f"[STALE-CHECK] Stale torrents check complete ({delta}): purged {removed_torrents} torrents")
+            logger.channel("stale-check").info(f"Stale torrents check complete ({delta}): purged {removed_torrents} torrents")
         except Exception as e:
-            log.error(f"[STALE-CHECK] Error during periodic database check: {e}")
+            logger.channel("stale-check").error(f"Error during periodic database check: {e}")
         await asyncio.sleep(STALE_CHECK_INTERVAL)

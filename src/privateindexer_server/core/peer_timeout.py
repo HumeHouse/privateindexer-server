@@ -4,17 +4,17 @@ import time
 
 from privateindexer_server.core import redis
 from privateindexer_server.core.config import PEER_TIMEOUT_INTERVAL, PEER_TIMEOUT
-from privateindexer_server.core.logger import log
+from privateindexer_server.core import logger
 
 
 async def periodic_peer_timeout_task():
     """
     Task to manually expire peers from the Redis database which are older than PEER_TIMEOUT seconds
     """
-    log.debug("[PEER-TIMEOUT] Task loop started")
+    logger.channel("peer-timeout").debug("Task loop started")
     while True:
         try:
-            log.debug("[PEER-TIMEOUT] Running peer timeout check")
+            logger.channel("peer-timeout").debug("Running peer timeout check")
             before = datetime.datetime.now()
 
             redis_connection = redis.get_connection()
@@ -37,7 +37,7 @@ async def periodic_peer_timeout_task():
                     break
 
             delta = datetime.datetime.now() - before
-            log.debug(f"[PEER-TIMEOUT] Completed in {delta}, purged {total_purged} peers")
+            logger.channel("peer-timeout").debug(f"Completed in {delta}, purged {total_purged} peers")
         except Exception as e:
-            log.error(f"[PEER-TIMEOUT] Error during periodic peer timeout check: {e}")
+            logger.channel("peer-timeout").error(f"Error during periodic peer timeout check: {e}")
         await asyncio.sleep(PEER_TIMEOUT_INTERVAL)

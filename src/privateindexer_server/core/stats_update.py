@@ -4,7 +4,7 @@ from collections import defaultdict
 
 from privateindexer_server.core import mysql, redis
 from privateindexer_server.core.config import STATS_UPDATE_INTERVAL
-from privateindexer_server.core.logger import log
+from privateindexer_server.core import logger
 
 
 async def periodic_stats_update_task():
@@ -12,10 +12,10 @@ async def periodic_stats_update_task():
     Task to update internal tracking statistics for each user based on Redis data
     :return:
     """
-    log.debug("[STATS-UPDATE] Task loop started")
+    logger.channel("stats-update").debug("Task loop started")
     while True:
         try:
-            log.debug("[STATS-UPDATE] Running stats update")
+            logger.channel("stats-update").debug("Running stats update")
             before = datetime.datetime.now()
             redis_connection = redis.get_connection()
 
@@ -68,7 +68,7 @@ async def periodic_stats_update_task():
                                 """)
 
             delta = datetime.datetime.now() - before
-            log.debug(f"[STATS-UPDATE] Stats update complete ({delta})")
+            logger.channel("stats-update").debug(f"Stats update complete ({delta})")
         except Exception as e:
-            log.error(f"[STATS-UPDATE] Error during periodic stats update: {e}")
+            logger.channel("stats-update").error(f"Error during periodic stats update: {e}")
         await asyncio.sleep(STATS_UPDATE_INTERVAL)
