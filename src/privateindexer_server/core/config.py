@@ -74,7 +74,7 @@ def validate_environment():
     try:
         os.makedirs(TORRENTS_DIR, exist_ok=True)
     except Exception as e:
-        logger.channel("config").error(f"Exception while creating torrent data directory: {e}")
+        logger.channel("config").exception(f"Exception while creating torrent data directory: {e}")
         exit(1)
 
     # ensure server URL set
