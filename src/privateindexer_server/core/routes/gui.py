@@ -31,7 +31,7 @@ async def view(torrent_id: int, request: Request, user: User = Depends(AccessTok
         seeders, leechers = await utils.get_seeders_and_leechers(torrent_id)
     except Exception as e:
         seeders = leechers = 0
-        logger.channel("view").error(f"Failed to fetch seeders/leechers from Redis: {e}")
+        logger.channel("view").exception(f"Failed to fetch seeders/leechers from Redis: {e}")
 
     torrent["seeders"] = seeders
     torrent["leechers"] = leechers

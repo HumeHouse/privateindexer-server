@@ -70,7 +70,7 @@ def get_jwt_key() -> str:
         with open(JWT_KEY_FILE, "r") as f:
             _jwt_key = f.read()
     except Exception as e:
-        logger.channel("jwt").error(f"Exception while loading jwt.key: {e}")
+        logger.channel("jwt").exception(f"Exception while loading jwt.key: {e}")
         _jwt_key = None
 
     return _jwt_key

@@ -20,7 +20,7 @@ async def lifespan(_: FastAPI):
         jwt_helper.get_jwt_key()
         logger.channel("app").info("Configured JWT key")
     except Exception as e:
-        logger.channel("app").error(f"Exception while reading/creating JWT key: {e}")
+        logger.channel("app").exception(f"Exception while reading/creating JWT key: {e}")
         exit(1)
 
     # test Redis connection
@@ -28,7 +28,7 @@ async def lifespan(_: FastAPI):
         await redis.get_connection()
         logger.channel("app").info("Connected to Redis")
     except Exception as e:
-        logger.channel("app").error(f"Exception while connecting Redis: {e}")
+        logger.channel("app").exception(f"Exception while connecting Redis: {e}")
         exit(1)
 
     # test MySQL connection and set up database structure
@@ -36,7 +36,7 @@ async def lifespan(_: FastAPI):
         await mysql.setup_database()
         logger.channel("app").info("Connected to MySQL")
     except Exception as e:
-        logger.channel("app").error(f"Exception while setting up MySQL: {e}")
+        logger.channel("app").exception(f"Exception while setting up MySQL: {e}")
         exit(1)
 
     logger.channel("app").info("Starting periodic tasks")

@@ -19,7 +19,7 @@ def get_admin_password() -> str | None:
         with open(ADMIN_PASSWORD_FILE, "r") as f:
             return f.read()
     except Exception as e:
-        logger.channel("admin").error(f"Exception while loading admin.password: {e}")
+        logger.channel("admin").exception(f"Exception while loading admin.password: {e}")
         return None
 
 
@@ -62,6 +62,6 @@ def set_admin_password(admin_password: str) -> bool:
         with open(ADMIN_PASSWORD_FILE, "w") as f:
             f.write(hashed_password)
     except Exception as e:
-        logger.channel("admin").error(f"Exception while saving admin.password: {e}")
+        logger.channel("admin").exception(f"Exception while saving admin.password: {e}")
 
     return True

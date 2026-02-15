@@ -90,7 +90,7 @@ async def get_analytics(user: User = Depends(api_key_required)):
         leeching_torrents = sum(1 for v in torrents.values() if v["leechers"])
 
     except Exception as e:
-        logger.channel("analytics").error(f"Failed to get analytics from Redis: {e}")
+        logger.channel("analytics").exception(f"Failed to get analytics from Redis: {e}")
         return JSONResponse({})
 
     # fetch all user data transfer statistics
@@ -199,7 +199,7 @@ async def grab(user: User = Depends(AccessTokenValidator("grab")), infohash: str
         with open(torrent_file, "rb") as f:
             bencoded = f.read()
     except Exception as e:
-        logger.channel("grab").error(f"Failed to read torrent with hash '{infohash}: {e}")
+        logger.channel("grab").exception(f"Failed to read torrent with hash '{infohash}: {e}")
         raise HTTPException(status_code=500, detail="Internal server error")
 
     # increment the torrent grab counter
@@ -281,7 +281,7 @@ async def upload(user: User = Depends(api_key_required), category: int = Form(..
         season_match, episode_match = utils.extract_season_episode(torrent_name)
     except Exception as e:
         os.unlink(torrent_download_path)
-        logger.channel("upload").error(f"Failed to process torrent file sent by '{user_label}': '{torrent_file.filename}': {e}")
+        logger.channel("upload").exception(f"Failed to process torrent file sent by '{user_label}': '{torrent_file.filename}': {e}")
         raise HTTPException(status_code=400, detail="Invalid torrent file")
 
     # add optional indexing parameters

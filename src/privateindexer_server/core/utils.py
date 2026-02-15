@@ -127,7 +127,7 @@ def get_torrent_hashes(torrent_file: str) -> tuple[str, str]:
 
         return str(hashes.v1).lower(), str(hashes.v2).lower()
     except Exception as e:
-        logger.channel("torrent").error(f"Error getting hashes for '{torrent_file}': {e}")
+        logger.channel("torrent").exception(f"Error getting hashes for '{torrent_file}': {e}")
         return "", ""
 
 
