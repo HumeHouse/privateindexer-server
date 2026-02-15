@@ -4,8 +4,8 @@ from typing import Optional
 
 import aiomysql
 
+from privateindexer_server.core import logger
 from privateindexer_server.core.config import MYSQL_HOST, MYSQL_PORT, MYSQL_USER, MYSQL_PASSWORD, MYSQL_DB, MYSQL_MAX_RETY, MYSQL_RETRY_BACKOFF, MYSQL_ROOT_PASSWORD
-from privateindexer_server.core.logger import log
 
 _db_pool: Optional[aiomysql.Pool] = None
 
@@ -84,23 +84,23 @@ async def setup_database():
     # first connect as root to check/create the schema and give proper permissions to the runtime user
     async with aiomysql.connect(host=MYSQL_HOST, port=MYSQL_PORT, user="root", password=MYSQL_ROOT_PASSWORD, autocommit=True) as conn:
         async with conn.cursor() as cur:
-            log.debug("[MYSQL] Connected to database as root for setup")
+            logger.channel("mysql").debug("Connected to database as root for setup")
 
             # create the schema if doens't already exist
             await cur.execute(f"CREATE DATABASE IF NOT EXISTS `{MYSQL_DB}` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci")
-            log.debug(f"[MYSQL] Ensured database '{MYSQL_DB}' exists")
+            logger.channel("mysql").debug(f"Ensured database '{MYSQL_DB}' exists")
 
             # create user if doesn't already exist
             await cur.execute("CREATE USER IF NOT EXISTS %s@'%%' IDENTIFIED BY %s", (MYSQL_USER, MYSQL_PASSWORD,))
-            log.debug(f"[MYSQL] Ensured user '{MYSQL_USER}' exists")
+            logger.channel("mysql").debug(f"Ensured user '{MYSQL_USER}' exists")
 
             # grant permissions to user if not already
             await cur.execute(f"GRANT ALL ON `{MYSQL_DB}`.* TO %s@'%%'", (MYSQL_USER,))
-            log.debug(f"[MYSQL] Granted privileges on '{MYSQL_DB}' to '{MYSQL_USER}'")
+            logger.channel("mysql").debug(f"Granted privileges on '{MYSQL_DB}' to '{MYSQL_USER}'")
 
     # create the user connection pool
     _db_pool = await aiomysql.create_pool(host=MYSQL_HOST, port=MYSQL_PORT, user=MYSQL_USER, password=MYSQL_PASSWORD, db=MYSQL_DB, autocommit=True)
-    log.debug(f"[MYSQL] Connected to database '{MYSQL_DB}' as '{MYSQL_USER}'")
+    logger.channel("mysql").debug(f"Connected to database '{MYSQL_DB}' as '{MYSQL_USER}'")
 
     # create any missing tables
     async with _db_pool.acquire() as conn:
@@ -111,9 +111,9 @@ async def setup_database():
 
                 if not exists:
                     await cur.execute(create_sql)
-                    log.info(f"[MYSQL] Created table '{table_name}'")
+                    logger.channel("mysql").info(f"Created table '{table_name}'")
 
-    log.debug("[MYSQL] Database setup completed")
+    logger.channel("mysql").debug("Database setup completed")
 
 
 async def disconnect_database():
@@ -123,7 +123,7 @@ async def disconnect_database():
     if _db_pool is not None:
         _db_pool.close()
         await _db_pool.wait_closed()
-        log.debug("[MYSQL] Connection pool closed")
+        logger.channel("mysql").debug("Connection pool closed")
 
 
 async def _with_retry(fn, *args, **kwargs):
@@ -137,10 +137,10 @@ async def _with_retry(fn, *args, **kwargs):
             if attempt < MYSQL_MAX_RETY:
                 wait_time = MYSQL_RETRY_BACKOFF * attempt
                 if attempt > MYSQL_MAX_RETY * .5:
-                    log.warning(f"[MYSQL] Query failed with {e}, retrying in {wait_time:.2f}s (attempt {attempt})")
+                    logger.channel("mysql").warning(f"Query failed with {e}, retrying in {wait_time:.2f}s (attempt {attempt})")
                 await asyncio.sleep(wait_time)
                 continue
-            log.error(f"[MYSQL] Query failed after {MYSQL_MAX_RETY} attempts: {e}")
+            logger.channel("mysql").error(f"Query failed after {MYSQL_MAX_RETY} attempts: {e}")
             raise
     return None
 
