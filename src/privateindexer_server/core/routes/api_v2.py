@@ -13,6 +13,7 @@ from fastapi.responses import Response, PlainTextResponse, JSONResponse
 from privateindexer_server.core import logger
 from privateindexer_server.core import mysql, utils, redis, route_helper
 from privateindexer_server.core.config import CATEGORIES, SYNC_BATCH_SIZE
+from privateindexer_server.core.jwt_helper import AccessTokenValidator
 from privateindexer_server.core.route_helper import api_key_required, latency_threshold
 from privateindexer_server.core.user_helper import User
 

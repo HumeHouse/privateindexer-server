@@ -225,7 +225,7 @@ async def torznab_api(user: User = Depends(api_key_required), t: str = Query(...
         search_params = {"cat": cat, "season": season, "ep": ep, "imdbid": imdbid, "tmdbid": tmdbid, "tvdbid": tvdbid, "artist": artist, "album": album}
         search_params = ",".join(f"{k}={v}" for k, v in search_params.items() if v is not None)
         logger.channel("torznab").info(f"User '{user.user_label}' searched{f" '{q}'" if q else ""} with params {search_params} ({query_duration}): "
-                 f"returned {len(results)} results, found {total_matches} total")
+                                       f"returned {len(results)} results, found {total_matches} total")
 
         # assemble the full query response
         items = []
