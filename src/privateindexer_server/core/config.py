@@ -2,7 +2,7 @@ import os
 
 from privateindexer_server.core import logger
 
-APP_VERSION = "1.11.6"
+APP_VERSION = "1.11.7"
 
 DATA_DIR = "/app/data"
 
