@@ -5,8 +5,8 @@ import time
 from fastapi import Query, Form, Header, HTTPException
 from fastapi.requests import Request
 
+from privateindexer_server.core import logger
 from privateindexer_server.core import user_helper
-from privateindexer_server.core.logger import log
 from privateindexer_server.core.user_helper import User
 
 
@@ -22,7 +22,7 @@ async def api_key_required(api_key_query: str | None = Query(None, alias="apikey
 
     user = await user_helper.get_user(api_key=api_key)
     if not user:
-        log.debug(f"[USER] Invalid API key used")
+        logger.channel("user").debug(f"Invalid API key used")
         raise HTTPException(status_code=403, detail="Invalid API key")
     return user
 

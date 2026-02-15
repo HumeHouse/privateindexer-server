@@ -5,8 +5,8 @@ from fastapi import Depends, Query, HTTPException, APIRouter
 from fastapi.responses import Response
 
 from privateindexer_server.core import jwt_helper, mysql, utils
+from privateindexer_server.core import logger
 from privateindexer_server.core.config import SITE_NAME, CATEGORIES, EXTERNAL_SERVER_URL
-from privateindexer_server.core.logger import log
 from privateindexer_server.core.route_helper import api_key_required
 from privateindexer_server.core.user_helper import User
 
@@ -22,7 +22,7 @@ async def torznab_api(user: User = Depends(api_key_required), t: str = Query(...
     """
     # the client is sending us a capabilities probe request to check what query parameters the server is capable of providing to the clients
     if t == "caps":
-        log.debug(f"[TORZNAB] User '{user.user_label}' sent capability request")
+        logger.channel("torznab").debug(f"User '{user.user_label}' sent capability request")
         xml = f"""<?xml version="1.0" encoding="UTF-8"?>
         <caps>
             <server version="1.0" title="{SITE_NAME}"/>
@@ -86,7 +86,7 @@ async def torznab_api(user: User = Depends(api_key_required), t: str = Query(...
                     seeders, leechers = await utils.get_seeders_and_leechers(torrent_id)
                 except Exception as e:
                     seeders = leechers = 0
-                    log.error(f"[TORZNAB] Failed to fetch seeders/leechers from Redis: {e}")
+                    logger.channel("torznab").error(f"Failed to fetch seeders/leechers from Redis: {e}")
 
                 # feed the client URLs with the torrent hash and an access token
                 grab_link = f"{EXTERNAL_SERVER_URL}/api/v2/grab?infohash={torrent_result['hash_v2']}&at={grab_access_token}"
@@ -130,7 +130,7 @@ async def torznab_api(user: User = Depends(api_key_required), t: str = Query(...
             delta = datetime.datetime.now() - before
             query_duration = f"{round(delta.total_seconds() * 1000)} ms"
 
-            log.debug(f"[TORZNAB] User '{user.user_label}' performed RSS feed query in category {cat} ({query_duration}): returned {len(results)} results")
+            logger.channel("torznab").debug(f"User '{user.user_label}' performed RSS feed query in category {cat} ({query_duration}): returned {len(results)} results")
 
             return Response(content=xml, media_type="application/xml")
 
@@ -224,7 +224,7 @@ async def torznab_api(user: User = Depends(api_key_required), t: str = Query(...
         # reassemble the full request string for logging
         search_params = {"cat": cat, "season": season, "ep": ep, "imdbid": imdbid, "tmdbid": tmdbid, "tvdbid": tvdbid, "artist": artist, "album": album}
         search_params = ",".join(f"{k}={v}" for k, v in search_params.items() if v is not None)
-        log.info(f"[TORZNAB] User '{user.user_label}' searched{f" '{q}'" if q else ""} with params {search_params} ({query_duration}): "
+        logger.channel("torznab").info(f"User '{user.user_label}' searched{f" '{q}'" if q else ""} with params {search_params} ({query_duration}): "
                  f"returned {len(results)} results, found {total_matches} total")
 
         # assemble the full query response
@@ -237,7 +237,7 @@ async def torznab_api(user: User = Depends(api_key_required), t: str = Query(...
                 seeders, leechers = await utils.get_seeders_and_leechers(torrent_id)
             except Exception as e:
                 seeders = leechers = 0
-                log.error(f"[TORZNAB] Failed to fetch seeders/leechers from Redis: {e}")
+                logger.channel("torznab").error(f"Failed to fetch seeders/leechers from Redis: {e}")
 
             # feed the client URLs with the torrent hash and an access token
             grab_link = f"{EXTERNAL_SERVER_URL}/api/v2/grab?infohash={torrent_result['hash_v2']}&at={grab_access_token}"
@@ -285,5 +285,5 @@ async def torznab_api(user: User = Depends(api_key_required), t: str = Query(...
 
     # the user is performing an unknown or unsupported query type
     else:
-        log.warning(f"[TORZNAB] User '{user.user_label}' attemped an invalid search type: {t}")
+        logger.channel("torznab").warning(f"User '{user.user_label}' attemped an invalid search type: {t}")
         raise HTTPException(status_code=400, detail="Unsupported request type")

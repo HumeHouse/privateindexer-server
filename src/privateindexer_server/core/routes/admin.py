@@ -7,9 +7,9 @@ from fastapi.responses import HTMLResponse, RedirectResponse, PlainTextResponse,
 from fastapi.templating import Jinja2Templates
 
 from privateindexer_server.core import admin_helper, user_helper, utils
+from privateindexer_server.core import logger
 from privateindexer_server.core import route_helper
 from privateindexer_server.core.config import SITE_NAME
-from privateindexer_server.core.logger import log
 
 router = APIRouter(prefix="/admin")
 templates = Jinja2Templates(directory="/app/src/templates")
@@ -56,7 +56,7 @@ async def dashboard(request: Request):
     if not validate_session(request):
         return templates.TemplateResponse(name="admin_login.html", request=request)
 
-    log.info(f"[ADMIN] Admin panel viewed")
+    logger.channel("admin").info(f"Admin panel viewed")
 
     return templates.TemplateResponse(name="admin_dashboard.html", request=request)
 
@@ -75,7 +75,7 @@ async def setup(request: Request, password: str = Form(...)):
     if not admin_helper.set_admin_password(password):
         return templates.TemplateResponse(name="admin_setup.html", context={"error": "Password doesn't meet requirements"}, request=request)
 
-    log.info(f"[ADMIN] Admin password set")
+    logger.channel("admin").info(f"Admin password set")
 
     return RedirectResponse("/admin", status_code=302)
 
@@ -95,7 +95,7 @@ async def login(request: Request, password: str = Form(...)):
     response = RedirectResponse("/admin", status_code=302)
     response.set_cookie(key="SID", value=sid, httponly=True, secure=False, samesite="strict", path="/admin")
 
-    log.info(f"[ADMIN] Admin panel login succeeded")
+    logger.channel("admin").info(f"Admin panel login succeeded")
 
     return response
 
@@ -132,7 +132,7 @@ async def create_user(request: Request, user_label: str = Form(...)):
 
     await user_helper.create_user(user_label)
 
-    log.info(f"[ADMIN] New user created: {user_label}")
+    logger.channel("admin").info(f"New user created: {user_label}")
 
     return PlainTextResponse("User created")
 
@@ -148,7 +148,7 @@ async def update_user(request: Request, user_id: int = Path(...), user_label: st
 
     await user_helper.update_user(user_id, user_label, rotate_key)
 
-    log.info(f"[ADMIN] User ID updated: {user_id}")
+    logger.channel("admin").info(f"User ID updated: {user_id}")
 
     return PlainTextResponse("User key rotated")
 
@@ -164,6 +164,6 @@ async def delete_user(request: Request, user_id: int = Path(...)):
 
     await user_helper.delete_user(user_id)
 
-    log.info(f"[ADMIN] User ID deleted: {user_id}")
+    logger.channel("admin").info(f"User ID deleted: {user_id}")
 
     return PlainTextResponse("User deleted")
