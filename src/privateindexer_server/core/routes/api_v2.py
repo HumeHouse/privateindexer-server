@@ -261,9 +261,12 @@ async def upload(user: User = Depends(api_key_required), category: int = Form(..
         # get the infodata from the torrent file
         info = lt.torrent_info(torrent_download_path)
 
-        # remove any trackers
+        # try remove any trackers
         if len(list(info.trackers())) > 0:
-            info.clear_trackers()
+            try:
+                info.clear_trackers()
+            except Exception:
+                pass
 
         # strip all invalid characters from the torrent name
         normalized_torrent_name = utils.clean_text_filter(torrent_name)
