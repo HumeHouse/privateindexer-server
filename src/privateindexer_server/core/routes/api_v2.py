@@ -244,7 +244,7 @@ async def upload(user: User = Depends(api_key_required), category: int = Form(..
     # ensure the client is using a valid torznab category
     category_id_list = [cat["id"] for cat in CATEGORIES]
     if category not in category_id_list:
-        logger.channel("upload").warning(f"User '{user_label}' tried to upload with invalid category: {category}")
+        logger.channel("upload").warning(f"User '{user_label}' tried to upload with invalid category ({category}): {torrent_file.filename}")
         raise HTTPException(status_code=400, detail="Invalid category")
 
     # make sure this is actually a torrent file
