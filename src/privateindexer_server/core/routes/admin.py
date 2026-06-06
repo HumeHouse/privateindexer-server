@@ -1,7 +1,7 @@
 import datetime
 import time
 
-from fastapi import Request, APIRouter, Form, HTTPException
+from fastapi import Request, APIRouter, Form, HTTPException, Depends
 from fastapi.params import Path
 from fastapi.responses import HTMLResponse, RedirectResponse, PlainTextResponse, JSONResponse
 from fastapi.templating import Jinja2Templates
@@ -10,6 +10,7 @@ from privateindexer_server.core import admin_helper, user_helper, utils
 from privateindexer_server.core import logger
 from privateindexer_server.core import route_helper
 from privateindexer_server.core.config import SITE_NAME
+from privateindexer_server.core.route_helper import latency_threshold
 
 router = APIRouter(prefix="/admin")
 templates = Jinja2Templates(directory="/app/src/templates")
@@ -61,7 +62,7 @@ async def dashboard(request: Request):
     return templates.TemplateResponse(name="admin_dashboard.html", request=request)
 
 
-@router.post("/setup", response_class=HTMLResponse)
+@router.post("/setup", response_class=HTMLResponse, dependencies=[Depends(latency_threshold(1000))])
 async def setup(request: Request, password: str = Form(...)):
     """
     Used to initially set up the admin password
@@ -80,7 +81,7 @@ async def setup(request: Request, password: str = Form(...)):
     return RedirectResponse("/admin", status_code=302)
 
 
-@router.post("/login", response_class=HTMLResponse)
+@router.post("/login", response_class=HTMLResponse, dependencies=[Depends(latency_threshold(1000))])
 async def login(request: Request, password: str = Form(...)):
     """
     Allows for user auth and session creation if password matches
@@ -121,7 +122,7 @@ async def get_users(request: Request):
     return JSONResponse(users)
 
 
-@router.post("/user", response_class=HTMLResponse)
+@router.post("/user", response_class=HTMLResponse, dependencies=[Depends(latency_threshold(1000))])
 async def create_user(request: Request, user_label: str = Form(...)):
     """
     Creates a new user with the specified label
@@ -137,7 +138,7 @@ async def create_user(request: Request, user_label: str = Form(...)):
     return PlainTextResponse("User created")
 
 
-@router.post("/user/{user_id}", response_class=HTMLResponse)
+@router.post("/user/{user_id}", response_class=HTMLResponse, dependencies=[Depends(latency_threshold(1000))])
 async def update_user(request: Request, user_id: int = Path(...), user_label: str = Form(None), rotate_key: bool = Form(False)):
     """
     Rotates a user's API key
@@ -153,7 +154,7 @@ async def update_user(request: Request, user_id: int = Path(...), user_label: st
     return PlainTextResponse("User key rotated")
 
 
-@router.delete("/user/{user_id}", response_class=HTMLResponse)
+@router.delete("/user/{user_id}", response_class=HTMLResponse, dependencies=[Depends(latency_threshold(1000))])
 async def delete_user(request: Request, user_id: int = Path(...)):
     """
     Deletes a user from database if exists
