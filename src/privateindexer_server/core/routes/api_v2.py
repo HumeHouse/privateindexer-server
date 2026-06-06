@@ -28,7 +28,7 @@ def get_health():
     return PlainTextResponse("OK")
 
 
-@router.get("/analytics", dependencies=[Depends(latency_threshold(1000))])
+@router.get("/analytics", dependencies=[Depends(latency_threshold(10000))])
 async def get_analytics(user: User = Depends(api_key_required)):
     """
     Called by tracking apps like Zabbix to obtain information about the status of the server
