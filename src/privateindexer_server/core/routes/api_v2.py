@@ -265,7 +265,9 @@ async def upload(user: User = Depends(api_key_required), category: int = Form(..
         if len(list(info.trackers())) > 0:
             try:
                 info.clear_trackers()
+                logger.channel("upload").debug("Trackers removed from file")
             except Exception:
+                logger.channel("upload").debug("No trackers required removal")
                 pass
 
         # strip all invalid characters from the torrent name
