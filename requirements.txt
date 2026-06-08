@@ -1,7 +1,7 @@
 libtorrent~=2.0.11
 fastapi~=0.136.3
 jinja2~=3.1.6
-uvicorn[standard]~=0.48.0
+uvicorn[standard]~=0.49.0
 python-multipart~=0.0.30
 aiomysql~=0.3.2
 redis[hiredis]~=8.0.0
