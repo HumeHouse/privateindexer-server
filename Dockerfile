@@ -1,5 +1,5 @@
 # first image stage is the base python system
-FROM python:3.13.9-slim AS base
+FROM python:3.14.0-slim AS base
 LABEL Description="Server container for the HumeHouse PrivateIndexer swarm"
 
 
