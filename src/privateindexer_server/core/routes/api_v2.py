@@ -285,7 +285,7 @@ async def upload(user: User = Depends(api_key_required), category: int = Form(..
     except Exception as e:
         os.unlink(torrent_download_path)
         logger.channel("upload").exception(f"Failed to process torrent file sent by '{user_label}': '{torrent_file.filename}': {e}")
-        raise HTTPException(status_code=400, detail="Invalid torrent file")
+        raise HTTPException(status_code=422, detail="Invalid torrent file")
 
     # add optional indexing parameters
     if imdbid:
