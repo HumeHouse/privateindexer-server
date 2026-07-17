@@ -283,8 +283,11 @@ async def upload(user: User = Depends(api_key_required), category: int = Form(..
         # check to see if we can pull a season/episode number from the torrent name
         season_match, episode_match = utils.extract_season_episode(torrent_name)
     except Exception as e:
-        os.unlink(torrent_download_path)
-        logger.channel("upload").exception(f"Failed to process torrent file sent by '{user_label}': '{torrent_file.filename}': {e}")
+        # remove invalid temporary torrent file
+        if os.path.exists(torrent_download_path):
+            os.unlink(torrent_download_path)
+
+        logger.channel("upload").warning(f"Failed to process torrent file sent by '{user_label}', file was rejected: '{torrent_file.filename}': {e}")
         raise HTTPException(status_code=422, detail="Invalid torrent file")
 
     # add optional indexing parameters
