@@ -90,7 +90,7 @@ def create_access_token(user_id: int, purpose: str) -> str:
     return jwt.encode(payload, get_jwt_key())
 
 
-def validate_access_token(access_token: str, purpose: str) -> int:
+def validate_access_token(access_token: str | None, purpose: str) -> int:
     """
     Helper to validate and decode JWT access token payload, returning user ID
     """

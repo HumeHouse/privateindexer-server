@@ -14,9 +14,10 @@ router = APIRouter()
 
 
 @router.get("/api")
-async def torznab_api(user: User = Depends(api_key_required), t: str = Query(...), q: str = Query(""), cat: str = Query(None), season: int = Query(None),
-                      ep: int = Query(None), imdbid: int = Query(None), tmdbid: int = Query(None), tvdbid: int = Query(None), artist: str = Query(None),
-                      album: str = Query(None), limit: int = Query(100), offset: int = Query(0), include_my_uploads: bool = Query(False)):
+async def torznab_api(user: User = Depends(api_key_required), t: str = Query(...), q: str = Query(""), cat: str | None = Query(None), season: int | None = Query(None),
+                      ep: int | None = Query(None), imdbid: int | None = Query(None), tmdbid: int | None = Query(None), tvdbid: int | None = Query(None),
+                      artist: str | None = Query(None), album: str | None = Query(None), limit: int = Query(100), offset: int = Query(0),
+                      include_my_uploads: bool = Query(False)):
     """
     Called by apps like Radarr/Sonarr/Lidarr to look for torrents which match a set of search parameters or perform RSS queries for the latest indexer uploads
     """
@@ -72,7 +73,7 @@ async def torznab_api(user: User = Depends(api_key_required), t: str = Query(...
             where_sql = " AND ".join(where_clauses) if where_clauses else "TRUE"
 
             # perform a lightweight scan of just most recent torrents
-            rss_query = f"SELECT * FROM torrents t WHERE {where_sql} ORDER BY added_on DESC LIMIT %s OFFSET %s"
+            rss_query = "SELECT * FROM torrents t WHERE " + where_sql + " ORDER BY added_on DESC LIMIT %s OFFSET %s"
             query_params = tuple(where_params) + (int(limit), int(offset))
             results = await mysql.fetch_all(rss_query, query_params)
 

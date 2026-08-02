@@ -37,7 +37,7 @@ async def view(torrent_id: int, request: Request, user: User = Depends(AccessTok
     torrent["leechers"] = leechers
 
     # get a list of users who wish to label their uploads from the database
-    users_query = f"SELECT id, label FROM users WHERE public_uploads = TRUE"
+    users_query = "SELECT id, label FROM users WHERE public_uploads = TRUE"
     users_results = await mysql.fetch_all(users_query)
 
     # try to match the uploaer ID with a user label in the database results
