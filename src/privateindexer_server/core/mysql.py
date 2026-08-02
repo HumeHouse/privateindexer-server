@@ -87,7 +87,7 @@ async def setup_database():
             logger.channel("mysql").debug("Connected to database as root for setup")
 
             # create the schema if doens't already exist
-            await cur.execute(f"CREATE DATABASE IF NOT EXISTS `{MYSQL_DB}` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci")
+            await cur.execute("CREATE DATABASE IF NOT EXISTS %s CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci", (MYSQL_DB,))
             logger.channel("mysql").debug(f"Ensured database '{MYSQL_DB}' exists")
 
             # create user if doesn't already exist
