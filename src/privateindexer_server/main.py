@@ -61,7 +61,7 @@ async def lifespan(_: FastAPI):
         try:
             task.cancel()
         except Exception:
-            pass
+            logger.channel("app").warning("Error occurred while cancelling task")
 
     await mysql.disconnect_database()
 
