@@ -35,7 +35,7 @@ async def get_user(api_key: str = None, user_id: int = None) -> User | None:
     else:
         return None
 
-    row = await mysql.fetch_one(f"SELECT id, label, api_key, downloaded, uploaded FROM users {where_clause}", where_params)
+    row = await mysql.fetch_one("SELECT id, label, api_key, downloaded, uploaded FROM users " + where_clause, where_params)
 
     if not row:
         return None

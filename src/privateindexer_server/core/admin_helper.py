@@ -30,6 +30,9 @@ def verify_admin_password(admin_password: str) -> bool:
     # get the stored admin password
     stored_admin_password = get_admin_password()
 
+    if stored_admin_password is None:
+        return False
+
     return bcrypt.checkpw(admin_password.encode(), stored_admin_password.encode())
 
 
