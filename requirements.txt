@@ -8,5 +8,5 @@ redis[hiredis]~=8.1.0
 pydantic~=2.13.5
 cryptography~=50.0.1
 unidecode~=1.4.0
-pyjwt~=2.15.0
+pyjwt~=2.15.1
 bcrypt~=5.0.0
