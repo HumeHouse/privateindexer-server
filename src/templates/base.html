@@ -1,0 +1,22 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>{% block title %}{% endblock %} | {{ SITE_NAME }}</title>
+    <link rel="icon" href="/static/favicon.ico">
+    <link rel="stylesheet" href="/static/indexer.css">
+    {% block head %}{% endblock %}
+</head>
+<body>
+    <a class="skip" href="#main">Skip to content</a>
+    <header class="topbar">
+        <div class="shell brand-line">
+            <img class="brand-mark" src="/static/logo.png" width="36" height="36" alt="">
+            <span class="brand">{{ SITE_NAME }}</span>
+            <span class="context">{% block context %}Administration{% endblock %}</span>
+        </div>
+    </header>
+    {% block content %}{% endblock %}
+</body>
+</html>
