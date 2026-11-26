@@ -1,0 +1,21 @@
+{% extends 'base.html' %}
+{% block title %}{{ auth_title }}{% endblock %}
+{% block content %}
+<main id="main" class="auth-layout" tabindex="-1">
+    <section class="panel auth-panel" aria-labelledby="auth-title">
+        <p class="eyebrow">{{ auth_context }}</p>
+        <h1 id="auth-title">{{ auth_title }}</h1>
+        <p class="lede">{{ auth_description }}</p>
+        {% if error %}<p class="notice error" role="alert">{{ error }}</p>{% endif %}
+        <form class="stack" method="post" action="{{ auth_action }}">
+            <div class="field">
+                <label for="password">{{ password_label }}</label>
+                <input id="password" type="password" name="password" autocomplete="{{ autocomplete }}"
+                    {% if password_help %}aria-describedby="password-help"{% endif %} required autofocus>
+                {% if password_help %}<p class="hint" id="password-help">{{ password_help }}</p>{% endif %}
+            </div>
+            <button type="submit" class="button primary">{{ submit_label }}</button>
+        </form>
+    </section>
+</main>
+{% endblock %}

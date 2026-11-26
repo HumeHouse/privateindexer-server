@@ -1,125 +1,47 @@
-<!DOCTYPE html>
-<html lang="en" data-bs-theme="dark">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>{{ torrent["name"] }}</title>
-    <link rel="icon" type="image/x-icon" href="/static/favicon.ico">
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/css/bootstrap.min.css"
-          integrity="sha256-2FMn2Zx6PuH5tdBQDRNwrOo60ts5wWPC9R8jK67b3t4=" crossorigin="anonymous">
-</head>
-<body>
-<nav class="navbar navbar-expand-lg bg-body border-bottom mb-4">
-    <div class="container">
-        <div class="navbar-brand d-flex align-items-center gap-2">
-            <img src="/static/logo.png" style="height: 50px;" alt="logo">
-            <span class="fw-semibold">{{ SITE_NAME }}</span>
-        </div>
-    </div>
-</nav>
-<div class="container my-4">
-    <div class="mb-4">
-        <h1 class="h3 mb-1 text-break">{{ torrent["name"] }}</h1>
-        <div class="text-muted mb-3">
-            Torrent ID {{ torrent["id"] }}
-        </div>
-        <div class="card mb-3">
-            <div class="card-body py-3">
-                <div class="row row-cols-2 row-cols-md-4 g-3 text-center">
-                    <div class="col">
-                        <div class="fw-semibold text-success fs-5">
-                            {{ torrent["seeders"] }}
-                        </div>
-                        <div class="text-muted small">Seeders</div>
-                    </div>
-                    <div class="col">
-                        <div class="fw-semibold text-danger fs-5">
-                            {{ torrent["leechers"] }}
-                        </div>
-                        <div class="text-muted small">Leechers</div>
-                    </div>
-                    <div class="col">
-                        <div class="fw-semibold fs-6">
-                            {{ torrent["size"] }}
-                        </div>
-                        <div class="text-muted small">Size</div>
-                    </div>
-                    <div class="col">
-                        <div class="fw-semibold fs-6">
-                            {{ torrent["files"] }}
-                        </div>
-                        <div class="text-muted small">Files</div>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-    <div class="card mb-3">
-        <div class="card-header fw-semibold">
-            General
-        </div>
-        <div class="card-body">
-            <dl class="row mb-0">
-                <dt class="col-sm-4">Category</dt>
-                <dd class="col-sm-8">{{ torrent["category_name"] }}</dd>
-                <dt class="col-sm-4">Grabs</dt>
-                <dd class="col-sm-8">{{ torrent["grabs"] }}</dd>
-                <dt class="col-sm-4">Uploaded On</dt>
-                <dd class="col-sm-8">{{ torrent["added_on"] }}</dd>
-                <dt class="col-sm-4">Uploaded By</dt>
-                <dd class="col-sm-8">{{ torrent["added_by"] }}</dd>
-                <dt class="col-sm-4">Last Seen</dt>
-                <dd class="col-sm-8">{{ torrent["last_seen"] }}</dd>
+{% extends 'base.html' %}
+{% block title %}{{ torrent['name'] }}{% endblock %}
+{% block context %}Torrent details{% endblock %}
+{% macro details(items) -%}
+<dl class="details">
+    {% for label, value in items %}<div><dt>{{ label }}</dt><dd>{{ value }}</dd></div>{% endfor %}
+</dl>
+{%- endmacro %}
+{% block content %}
+<main id="main" class="shell page torrent" tabindex="-1">
+    <section class="hero">
+        <p class="eyebrow">Torrent details</p>
+        <h1>{{ torrent['name'] }}</h1>
+        <p class="lede">Torrent ID <span class="mono">#{{ torrent['id'] }}</span></p>
+    </section>
+    <dl class="metrics" aria-label="Torrent at a glance">
+        {% for label, field, tone in [('Seeders', 'seeders', 'good'), ('Leechers', 'leechers', 'accent'), ('Size', 'size', ''), ('Files', 'files', '')] %}
+        <div class="metric {{ tone }}"><dt>{{ label }}</dt><dd>{{ torrent[field] }}</dd></div>
+        {% endfor %}
+    </dl>
+    <div class="detail-grid">
+        <section class="panel detail-panel">
+            <h2>General</h2>
+            {{ details([('Category', torrent['category_name']), ('Grabs', torrent['grabs']), ('Uploaded on', torrent['added_on']), ('Uploaded by', torrent['added_by']), ('Last seen', torrent['last_seen'])]) }}
+        </section>
+        {% if torrent['season'] or torrent['episode'] %}
+        <section class="panel detail-panel">
+            <h2>Episode info</h2>
+            {{ details([('Season', torrent['season'] or 'None'), ('Episode', torrent['episode'] or 'None')]) }}
+        </section>
+        {% endif %}
+        {% if torrent['artist'] or torrent['album'] %}
+        <section class="panel detail-panel">
+            <h2>Track info</h2>
+            {{ details([('Artist', torrent['artist'] or 'None'), ('Album', torrent['album'] or 'None')]) }}
+        </section>
+        {% endif %}
+        <section class="panel detail-panel hashes">
+            <h2>Hashes</h2>
+            <dl class="details">
+                <div><dt>Hash v1</dt><dd><code>{{ torrent['hash_v1'] or 'None' }}</code></dd></div>
+                <div><dt>Hash v2</dt><dd><code>{{ torrent['hash_v2'] or 'None' }}</code></dd></div>
             </dl>
-        </div>
+        </section>
     </div>
-    {% if torrent["season"] or torrent["episode"] %}
-        <div class="card mb-3">
-            <div class="card-header fw-semibold">
-                Episode Info
-            </div>
-            <div class="card-body">
-                <dl class="row mb-0">
-                    <dt class="col-sm-4">Season</dt>
-                    <dd class="col-sm-8">{{ torrent["season"] or "—" }}</dd>
-                    <dt class="col-sm-4">Episode</dt>
-                    <dd class="col-sm-8">{{ torrent["episode"] or "—" }}</dd>
-                </dl>
-            </div>
-        </div>
-    {% endif %}
-    {% if torrent["artist"] or torrent["album"] %}
-        <div class="card mb-3">
-            <div class="card-header fw-semibold">
-                Track Info
-            </div>
-            <div class="card-body">
-                <dl class="row mb-0">
-                    <dt class="col-sm-4">Artist</dt>
-                    <dd class="col-sm-8">{{ torrent["artist"] or "—" }}</dd>
-                    <dt class="col-sm-4">Album</dt>
-                    <dd class="col-sm-8">{{ torrent["album"] or "—" }}</dd>
-                </dl>
-            </div>
-        </div>
-    {% endif %}
-    <div class="card mb-3">
-        <div class="card-header fw-semibold">
-            Hashes
-        </div>
-        <div class="card-body">
-            <dl class="row mb-0">
-                <dt class="col-sm-4">Hash v1</dt>
-                <dd class="col-sm-8">
-                    <code class="text-break user-select-all">{{ torrent["hash_v1"] or "—" }}</code>
-                </dd>
-                <dt class="col-sm-4">Hash v2</dt>
-                <dd class="col-sm-8">
-                    <code class="text-break user-select-all">{{ torrent["hash_v2"] or "—" }}</code>
-                </dd>
-            </dl>
-        </div>
-    </div>
-</div>
-</body>
-</html>
+</main>
+{% endblock %}

@@ -1,350 +1,71 @@
-<!DOCTYPE html>
-<html lang="en" data-bs-theme="dark">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Admin Dashboard</title>
-    <link rel="icon" type="image/x-icon" href="/static/favicon.ico">
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/css/bootstrap.min.css"
-          integrity="sha256-2FMn2Zx6PuH5tdBQDRNwrOo60ts5wWPC9R8jK67b3t4=" crossorigin="anonymous">
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.13.1/font/bootstrap-icons.min.css"
-          integrity="sha256-pdY4ejLKO67E0CM2tbPtq1DJ3VGDVVdqAR6j3ZwdiE4=" crossorigin="anonymous">
-</head>
-<body>
-<nav class="navbar navbar-expand-lg bg-body border-bottom mb-4">
-    <div class="container">
-        <div class="navbar-brand d-flex align-items-center gap-2">
-            <img src="/static/logo.png" style="height: 50px;" alt="logo">
-            <span class="fw-semibold">{{ SITE_NAME }}</span>
+{% extends 'base.html' %}
+{% block title %}Admin dashboard{% endblock %}
+{% block head %}<script defer src="/static/admin.js"></script>{% endblock %}
+{% block content %}
+<main id="main" class="shell page" tabindex="-1">
+    <section class="hero hero-actions">
+        <div><p class="eyebrow">Administration</p><h1>User dashboard</h1>
+        <p class="lede">Monitor client reachability and manage user access.</p></div>
+        <button type="button" class="button primary" id="open-create">Create user</button>
+    </section>
+    <dl class="metrics" aria-label="Client reachability summary">
+        <div class="metric"><dt>Total users</dt><dd id="count-total">&ndash;</dd></div>
+        <div class="metric good"><dt>Reachable</dt><dd id="count-reachable">&ndash;</dd></div>
+        <div class="metric bad"><dt>Unreachable</dt><dd id="count-unreachable">&ndash;</dd></div>
+        <div class="metric"><dt>Unknown</dt><dd id="count-unknown">&ndash;</dd></div>
+    </dl>
+    <section class="panel users-panel" aria-labelledby="users-heading">
+        <div class="section-bar">
+            <div><h2 id="users-heading" tabindex="-1">Users</h2><p class="hint">Connectivity, transfer stats, and API keys.</p></div>
+            <div class="table-tools">
+                <input id="filter" type="search" placeholder="Filter by ID or label" aria-label="Filter users by ID or label" disabled>
+                <button type="button" class="button" id="refresh">Refresh</button>
+            </div>
         </div>
-        <button type="button" class="btn btn-success" data-bs-toggle="modal" data-bs-target="#createUserModal">
-            Create User
-        </button>
-    </div>
-</nav>
-<div class="container">
-    <div class="card">
-        <div class="card-header fw-semibold">
-            Users
-        </div>
-        <div class="card-body p-0 table-responsive">
-            <table class="table table-hover table-sm mb-0 align-middle">
-                <thead class="table-secondary">
-                <tr>
-                    <th>ID</th>
-                    <th>Label</th>
-                    <th>Status</th>
-                    <th>API Key</th>
-                    <th class="text-end">DL</th>
-                    <th class="text-end">UL</th>
-                    <th class="text-end">Seeds</th>
-                    <th class="text-end">Leeches</th>
-                    <th class="text-end">Popularity</th>
-                    <th class="text-end">Grabs</th>
-                    <th class="text-end">Version</th>
-                    <th class="text-end">Last Seen</th>
-                    <th class="text-end">Last IP</th>
-                    <th class="text-end">Actions</th>
-                </tr>
-                </thead>
-                <tbody id="userTable">
-                <tr>
-                    <td colspan="14" class="text-center text-muted py-4">
-                        Loading...
-                    </td>
-                </tr>
-                </tbody>
+        <p id="status" class="table-status" role="status">Loading users&hellip;</p>
+        <div class="table-wrap" role="region" aria-label="User details, scrollable horizontally" tabindex="0">
+            <table aria-labelledby="users-heading">
+                <thead><tr>
+                    {% for label in ['ID', 'Label', 'Status', 'API key', 'Downloaded', 'Uploaded', 'Seeds', 'Leeches', 'Popularity', 'Grabs', 'Version', 'Last seen', 'Last IP', 'Actions'] %}
+                    <th scope="col">{{ label }}</th>
+                    {% endfor %}
+                </tr></thead>
+                <tbody id="user-rows"></tbody>
             </table>
         </div>
+    </section>
+</main>
+<div class="toast-stack">
+    <div id="notification" class="toast" hidden>
+        <p id="notification-message"></p>
+        <button type="button" class="button small" id="dismiss-notification" aria-label="Dismiss notification">Dismiss</button>
     </div>
+    <p id="notification-announcement" class="visually-hidden" role="status" aria-atomic="true"></p>
 </div>
-<div class="modal fade" id="createUserModal" tabindex="-1">
-    <div class="modal-dialog">
-        <form class="modal-content" id="createUserForm">
-            <div class="modal-header">
-                <h5 class="modal-title">Create User</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-            </div>
-            <div class="modal-body">
-                <div class="mb-3">
-                    <label class="form-label" for="userLabel">User Label</label>
-                    <input type="text" class="form-control" id="userLabel" required>
-                </div>
-            </div>
-            <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                <button class="btn btn-success" type="submit">Create</button>
-            </div>
+<dialog id="action-dialog" aria-labelledby="action-title">
+    <form id="action-form" class="dialog-body stack">
+        <div><p class="eyebrow">User management</p><h2 id="action-title"></h2></div>
+        <p id="action-description" class="lede"></p>
+        <div id="label-field" class="field" hidden>
+            <label for="user-label">User label</label>
+            <input id="user-label" name="user_label" type="text" autocomplete="off" disabled>
+        </div>
+        <p id="action-error" class="notice error" role="alert" hidden></p>
+        <div class="dialog-actions">
+            <button type="button" class="button" id="cancel-action">Cancel</button>
+            <button type="submit" class="button primary" id="submit-action"></button>
+        </div>
+    </form>
+</dialog>
+<dialog id="key-dialog" aria-labelledby="key-title">
+    <div class="dialog-body stack">
+        <div><p class="eyebrow">User credentials</p><h2 id="key-title">API key</h2></div>
+        <div class="field"><label id="key-label" for="full-key">API key</label>
+            <input id="full-key" class="mono" type="text" readonly autocomplete="off" spellcheck="false"></div>
+        <p id="key-status" class="hint" role="status"></p>
+        <form class="dialog-actions" method="dialog">
+            <button type="submit" class="button">Close</button>
         </form>
     </div>
-</div>
-<div class="modal fade" id="deleteUserModal" tabindex="-1">
-    <div class="modal-dialog">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title">Confirm User Delete</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-            </div>
-            <div class="modal-body">
-                <p>
-                    Are you sure you want to delete the user <strong id="deleteUserLabel"></strong>?
-                </p>
-            </div>
-            <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
-                    Cancel
-                </button>
-                <button type="button" class="btn btn-danger" id="confirmDeleteUser">
-                    Delete
-                </button>
-            </div>
-        </div>
-    </div>
-</div>
-<div class="modal fade" id="rotateKeyModal" tabindex="-1">
-    <div class="modal-dialog">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title">Confirm Rotate API Key</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-            </div>
-            <div class="modal-body">
-                <p>
-                    Are you sure you want to rotate the API key for the user <strong id="rotateKeyLabel"></strong>?
-                    The user's old key will immediately become invalid.
-                </p>
-            </div>
-            <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
-                    Cancel
-                </button>
-                <button type="button" class="btn btn-danger" id="confirmRotateKey">
-                    Rotate
-                </button>
-            </div>
-        </div>
-    </div>
-</div>
-<div class="modal fade modal-lg" id="apiKeyModal" tabindex="-1">
-    <div class="modal-dialog modal-dialog-centered">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title">API Key</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-            </div>
-            <div class="modal-body">
-                <input type="text"
-                       class="form-control font-monospace"
-                       id="fullApiKey"
-                       readonly>
-            </div>
-        </div>
-    </div>
-</div>
-<script src="https://cdn.jsdelivr.net/npm/jquery@3.7.1/dist/jquery.min.js"
-        integrity="sha256-/JqT3SQfawRcv/BIHPThkBvs0OEvtFFmqPF/lYI/Cxo=" crossorigin="anonymous"></script>
-<script src="https://cdn.jsdelivr.net/npm/popper.js@1.16.1/dist/umd/popper.min.js"
-        integrity="sha256-/ijcOLwFf26xEYAjW75FizKVo5tnTYiQddPZoLUHHZ8=" crossorigin="anonymous"></script>
-<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/js/bootstrap.min.js"
-        integrity="sha256-ew8UiV1pJH/YjpOEBInP1HxVvT/SfrCmwSoUzF9JIgc=" crossorigin="anonymous"></script>
-<script>
-    function formatBytes(bytes) {
-        if (!bytes || bytes <= 0) return "0 B";
-        const units = ["B", "KiB", "MiB", "GiB", "TiB"];
-        const i = Math.floor(Math.log(bytes) / Math.log(1024));
-        return (bytes / Math.pow(1024, i)).toFixed(1) + " " + units[i];
-    }
-
-    async function loadUsers() {
-        const userTable = $("#userTable");
-        userTable.html(`<tr><td colspan="14" class="text-center text-muted py-4">Loading...</td></tr>`);
-
-        const res = await fetch("/admin/users");
-        const users = await res.json();
-
-        if (!users.length) {
-            userTable.html(`<tr><td colspan="14" class="text-center text-muted py-4">No users</td></tr>`);
-            return;
-        }
-
-        userTable.html(users.map(user => {
-            let reachable = user["reachable"];
-            return `
-                <tr>
-                    <td>${user["id"]}</td>
-        
-                    <td class="fw-semibold">
-                        ${user["label"]}
-                    </td>
-        
-                    <td>
-                        <span class="badge ${reachable === -1 ? "bg-secondary" : reachable === 1 ? "bg-success" : "bg-danger"}">
-                            ${reachable === -1 ? "Unknown" : reachable === 1 ? "Reachable" : "Unreachable"}
-                        </span>
-                    </td>
-
-                    <td>
-                        <button type="button" class="copyInlineKey btn btn-link btn-sm p-0" title="Copy API key"
-                            data-key=${user["api_key"]}>
-                            <i class="bi bi-clipboard"></i>
-                        </button>
-                        <button type="button" class="showModalKey btn btn-link btn-sm p-0 ms-1" title="View API key"
-                            data-key=${user["api_key"]} data-bs-toggle="modal" data-bs-target="#apiKeyModal">
-                            <i class="bi bi-eye"></i>
-                        </button>
-                        <button type="button" class="rotateKeyButton btn btn-link btn-sm p-0 ms-1" title="Rotate API key"
-                            data-user-id="${user["id"]}" data-user-label="${user["label"]}" data-bs-toggle="modal"
-                            data-bs-target="#rotateKeyModal">
-                            <i class="bi bi-arrow-repeat"></i>
-                        </button>
-                    </td>
-        
-                    <td class="text-end">
-                        ${formatBytes(user["downloaded"])}
-                    </td>
-        
-                    <td class="text-end">
-                        ${formatBytes(user["uploaded"])}
-                    </td>
-        
-                    <td class="text-end">
-                        ${user["seeding"]}
-                    </td>
-        
-                    <td class="text-end">
-                        ${user["leeching"]}
-                    </td>
-
-                    <td class="text-end">
-                        ${user["popularity"]}
-                    </td>
-
-                    <td class="text-end">
-                        ${user["grabs"]}
-                    </td>
-
-                    <td class="text-end">
-                        ${user["client_version"] || "-"}
-                    </td>
-
-                    <td class="text-end">
-                        <span title="${user["last_seen"] || "-"}">${user["last_seen_ago"] || "-"}</span>
-                    </td>
-
-                    <td class="text-end">
-                        ${user["last_ip"] || "-"}
-                    </td>
-        
-                    <td class="text-end">
-                        <button type="button" class="deleteUserButton btn btn-sm btn-outline-danger" data-user-id="${user["id"]}"
-                            data-user-label="${user["label"]}" data-bs-toggle="modal" data-bs-target="#deleteUserModal">
-                            Delete
-                        </button>
-                    </td>
-                </tr>
-            `;
-        }).join(""));
-    }
-
-    let deleteUserId = null;
-
-    $(document).on("click", ".deleteUserButton", function () {
-        deleteUserId = $(this).data("user-id");
-        const label = $(this).data("user-label");
-
-        $("#deleteUserLabel").text(label);
-    });
-
-    $("#confirmDeleteUser").on("click", async function () {
-        if (!deleteUserId) return;
-
-        await fetch(`/admin/user/${deleteUserId}`, {
-            method: "DELETE"
-        });
-
-        deleteUserId = null;
-
-        bootstrap.Modal.getOrCreateInstance(document.getElementById("deleteUserModal")).hide();
-
-        await loadUsers();
-    });
-
-    $("#createUserForm").on("submit", async function (e) {
-        e.preventDefault();
-
-        let userLabel = $("#userLabel");
-
-        await fetch("/admin/user", {
-            method: "POST",
-            headers: {"Content-Type": "application/x-www-form-urlencoded"},
-            body: new URLSearchParams({user_label: userLabel.val()})
-        });
-
-        userLabel.val("");
-        bootstrap.Modal.getOrCreateInstance(document.getElementById("createUserModal")).hide();
-        await loadUsers();
-    });
-
-    let rotateUserId = null;
-
-    $(document).on("click", ".rotateKeyButton", function () {
-        rotateUserId = $(this).data("user-id");
-        const label = $(this).data("user-label");
-
-        $("#rotateKeyLabel").text(label);
-    });
-
-    $("#confirmRotateKey").on("click", async function () {
-        if (!rotateUserId) return;
-
-        await fetch(`/admin/user/${rotateUserId}`, {
-            method: "POST",
-            headers: {"Content-Type": "application/x-www-form-urlencoded"},
-            body: new URLSearchParams({rotate_key: "true"})
-        });
-
-        rotateUserId = null;
-
-        bootstrap.Modal.getOrCreateInstance(document.getElementById("rotateKeyModal")).hide();
-
-        await loadUsers();
-    });
-
-    $(document).on("click", ".copyInlineKey", function () {
-        const btn = $(this);
-        const key = btn.data("key");
-
-        if (btn.data("busy")) return;
-        btn.data("busy", true);
-
-        const resetButton = () => {
-            setTimeout(() => {
-                btn.html('<i class="bi bi-clipboard"></i>');
-                btn.data("busy", false);
-            }, 1200);
-        };
-
-        if (!navigator.clipboard?.writeText) {
-            btn.html('<i class="bi bi-x-lg text-danger"></i>');
-            resetButton();
-            return;
-        }
-
-        navigator.clipboard.writeText(key)
-            .then(() => {
-                btn.html('<i class="bi bi-check-lg text-success"></i>');
-            })
-            .catch(() => {
-                btn.html('<i class="bi bi-x-lg text-danger"></i>');
-            }).finally(resetButton);
-    });
-
-    $(document).on("click", ".showModalKey", function () {
-        const key = $(this).data("key");
-        $("#fullApiKey").val(key);
-    });
-
-    loadUsers();
-</script>
-</body>
-</html>
+</dialog>
+{% endblock %}
